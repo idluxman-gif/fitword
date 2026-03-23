@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore, type GameMode } from '@/lib/store'
 import { useGridStore, type Direction } from '@/lib/grid-store'
+import { useMultiplayerStore, type MultiplayerStatus } from '@/lib/multiplayer-store'
 import { playTileTap, playValidWord, playInvalidWord, playPerfectFit, playStageClear } from '@/lib/sound'
 
 // ─── Init Hook ───
@@ -56,8 +57,39 @@ function MuteButton() {
   )
 }
 
+// ─── Leave Confirmation Dialog ───
+function LeaveConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100] px-6"
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="bg-builder rounded-2xl p-6 max-w-[300px] w-full text-center border border-gray-700/50"
+      >
+        <p className="text-white text-lg font-bold mb-2">?לצאת מהמשחק</p>
+        <p className="text-gray-400 text-sm mb-5">הפעולה תסיים את התור שלך</p>
+        <div className="flex gap-3">
+          <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-gray-700 text-white font-medium">
+            המשך לשחק
+          </button>
+          <button onClick={onConfirm} className="flex-1 py-3 rounded-xl bg-error text-white font-medium">
+            יציאה
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 // ─── Top Bar ───
 function TopBar() {
+  const [showLeave, setShowLeave] = useState(false)
+  const goHome = useGameStore((s) => s.goHome)
   const timeLeft = useGameStore((s) => s.timeLeft)
   const score = useGameStore((s) => s.score)
   const targetLength = useGameStore((s) => s.targetLength)
@@ -116,12 +148,17 @@ function TopBar() {
           )}
         </div>
 
-        {/* Remaining + Mute */}
-        <div className="flex items-center gap-2">
+        {/* Remaining + Mute + Leave */}
+        <div className="flex items-center gap-1">
           <span className="text-sm text-gray-400">נשארו {remaining}</span>
           <MuteButton />
+          <button onClick={() => setShowLeave(true)} className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-error text-sm">✕</button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showLeave && <LeaveConfirm onConfirm={goHome} onCancel={() => setShowLeave(false)} />}
+      </AnimatePresence>
 
       {/* Swap button for Endless */}
       {mode === 'endless' && status === 'playing' && swapsAvailable > 0 && (
@@ -784,6 +821,476 @@ function GridGame() {
   )
 }
 
+// ─── Multiplayer Components ───
+
+function MultiplayerLobby() {
+  const [joinCode, setJoinCode] = useState('')
+  const [joinError, setJoinError] = useState('')
+  const [tab, setTab] = useState<'choose' | 'create' | 'join'>('choose')
+  const createRoom = useMultiplayerStore((s) => s.createRoom)
+  const joinRoom = useMultiplayerStore((s) => s.joinRoom)
+  const startMatch = useMultiplayerStore((s) => s.startMatch)
+  const leaveGame = useMultiplayerStore((s) => s.leaveGame)
+  const roomCode = useMultiplayerStore((s) => s.roomCode)
+  const players = useMultiplayerStore((s) => s.players)
+  const isHost = useMultiplayerStore((s) => s.isHost)
+  const status = useMultiplayerStore((s) => s.status)
+
+  if (status === 'creating' || status === 'joining') {
+    return (
+      <div className="fixed inset-0 bg-bg flex flex-col items-center justify-center z-50 px-6">
+        <div className="text-2xl text-accent animate-pulse">...מתחבר</div>
+      </div>
+    )
+  }
+
+  if (status === 'waiting' || status === 'lobby') {
+    return (
+      <div className="fixed inset-0 bg-bg flex flex-col items-center justify-center z-50 px-6">
+        <h2 className="text-2xl font-bold text-accent mb-4">חדר משחק</h2>
+
+        {/* Room code */}
+        <div className="mb-4 text-center">
+          <p className="text-gray-400 text-sm mb-1">קוד חדר:</p>
+          <div className="text-5xl font-bold text-white tracking-[0.3em] font-mono">{roomCode}</div>
+          <p className="text-gray-500 text-xs mt-1">שתפו את הקוד עם חברים</p>
+        </div>
+
+        {/* Player list */}
+        <div className="w-full max-w-[280px] mb-6">
+          <p className="text-gray-400 text-sm mb-2">{players.length}/6 :שחקנים</p>
+          <div className="space-y-2">
+            {players.map((p, i) => (
+              <motion.div
+                key={p.id}
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: i * 0.1 }}
+                className="flex items-center justify-between px-4 py-2 rounded-xl bg-tile border border-gray-700/40"
+              >
+                <span className="text-white">{p.name}</span>
+                {i === 0 && <span className="text-xs text-accent">מנהל</span>}
+              </motion.div>
+            ))}
+            {players.length < 6 && (
+              <div className="flex items-center justify-center px-4 py-2 rounded-xl border border-dashed border-gray-700/40">
+                <span className="text-gray-600 text-sm animate-pulse">...ממתין לשחקנים</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Buttons */}
+        <div className="flex flex-col gap-3 w-full max-w-[280px]">
+          {isHost && players.length >= 2 && (
+            <motion.button
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={startMatch}
+              className="px-8 py-4 rounded-2xl bg-success text-white text-xl font-bold shadow-lg shadow-success/30"
+            >
+              !התחל משחק
+            </motion.button>
+          )}
+          <button onClick={leaveGame} className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium">
+            יציאה
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Choose: create or join
+  return (
+    <div className="fixed inset-0 bg-bg flex flex-col items-center justify-center z-50 px-6">
+      <h2 className="text-3xl font-bold text-accent mb-2">מולטיפלייר</h2>
+      <p className="text-gray-400 mb-8">עד 6 שחקנים</p>
+
+      {tab === 'choose' && (
+        <div className="flex flex-col gap-3 w-full max-w-[280px]">
+          <motion.button
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={async () => {
+              setTab('create')
+              await createRoom()
+            }}
+            className="px-6 py-4 rounded-2xl bg-accent text-white text-lg font-bold shadow-lg shadow-accent/20"
+          >
+            🏠 צור משחק
+          </motion.button>
+          <motion.button
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setTab('join')}
+            className="px-6 py-4 rounded-2xl bg-tile text-white text-lg font-bold border border-gray-700/40"
+          >
+            🔗 הצטרף למשחק
+          </motion.button>
+          <button onClick={leaveGame} className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium mt-2">
+            חזרה
+          </button>
+        </div>
+      )}
+
+      {tab === 'join' && (
+        <div className="flex flex-col gap-4 w-full max-w-[280px] items-center">
+          <p className="text-gray-400 text-sm">הכנס קוד חדר:</p>
+          <input
+            type="text"
+            maxLength={4}
+            value={joinCode}
+            onChange={(e) => { setJoinCode(e.target.value.toUpperCase()); setJoinError('') }}
+            placeholder="ABCD"
+            className="text-center text-4xl font-bold font-mono tracking-[0.4em] bg-tile border-2 border-gray-700 rounded-xl py-3 w-full text-white placeholder-gray-600 focus:border-accent outline-none"
+            autoFocus
+          />
+          {joinError && <p className="text-error text-sm">{joinError}</p>}
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            disabled={joinCode.length !== 4}
+            onClick={async () => {
+              const res = await joinRoom(joinCode)
+              if (!res.ok) setJoinError(res.error || 'שגיאה')
+            }}
+            className={`px-8 py-3 rounded-2xl text-white text-lg font-bold w-full ${joinCode.length === 4 ? 'bg-accent' : 'bg-gray-700 text-gray-500'}`}
+          >
+            הצטרף
+          </motion.button>
+          <button onClick={() => { setTab('choose'); setJoinCode(''); setJoinError('') }}
+            className="text-gray-400 text-sm">← חזרה</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MultiplayerCountdown() {
+  const countdownValue = useMultiplayerStore((s) => s.countdownValue)
+  const status = useMultiplayerStore((s) => s.status)
+
+  if (status !== 'countdown' || countdownValue === null) return null
+
+  return (
+    <motion.div
+      className="fixed inset-0 bg-bg/95 flex items-center justify-center z-[60]"
+    >
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={countdownValue}
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 2, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+          className={`text-8xl font-bold ${countdownValue === 0 ? 'text-accent' : 'text-white'}`}
+        >
+          {countdownValue === 0 ? '!GO' : countdownValue}
+        </motion.div>
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
+function MultiplayerOpponentBars() {
+  const players = useMultiplayerStore((s) => s.players)
+  const playerId = useMultiplayerStore((s) => s.playerId)
+  const targetLength = useMultiplayerStore((s) => s.targetLength)
+  const status = useMultiplayerStore((s) => s.status)
+
+  if (status !== 'playing' && status !== 'finished') return null
+  const opponents = players.filter((p) => p.id !== playerId)
+  if (opponents.length === 0) return null
+
+  return (
+    <div className="px-3 py-1 space-y-1">
+      {opponents.map((opp) => (
+        <div key={opp.id} className="flex items-center gap-2 text-xs">
+          <span className="text-amber-400 w-12 truncate">{opp.name}</span>
+          <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+            <motion.div
+              className={`h-full rounded-full ${opp.perfectFit ? 'bg-success' : 'bg-amber-400/60'}`}
+              animate={{ width: `${Math.min(100, (opp.filledLength / targetLength) * 100)}%` }}
+              transition={{ duration: 0.3 }}
+            />
+          </div>
+          <span className="text-amber-400 w-10 text-left tabular-nums">{opp.score}</span>
+          {opp.finished && <span className="text-success">✓</span>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function MultiplayerTopBar() {
+  const timeLeft = useMultiplayerStore((s) => s.timeLeft)
+  const score = useMultiplayerStore((s) => s.score)
+  const targetLength = useMultiplayerStore((s) => s.targetLength)
+  const filledWords = useMultiplayerStore((s) => s.filledWords)
+  const muted = useMultiplayerStore((s) => s.muted)
+  const toggleMute = useMultiplayerStore((s) => s.toggleMute)
+  const showLeaveConfirm = useMultiplayerStore((s) => s.showLeaveConfirm)
+  const setShowLeaveConfirm = useMultiplayerStore((s) => s.setShowLeaveConfirm)
+  const leaveGame = useMultiplayerStore((s) => s.leaveGame)
+
+  const filledLen = filledWords.reduce((s, w) => s + w.length, 0)
+  const remaining = targetLength - filledLen
+  const minutes = Math.floor(timeLeft / 60)
+  const seconds = timeLeft % 60
+  const isLow = timeLeft <= 15
+
+  return (
+    <div className="flex items-center justify-between px-3 py-2">
+      <span className={`text-lg font-bold tabular-nums ${isLow ? 'text-error animate-pulse' : 'text-white'}`}>
+        {minutes}:{seconds.toString().padStart(2, '0')}
+      </span>
+      <span className="text-lg font-bold text-accent">{score} נק׳</span>
+      <div className="flex items-center gap-1">
+        <span className="text-sm text-gray-400">נשארו {remaining}</span>
+        <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center text-gray-400">{muted ? '🔇' : '🔊'}</button>
+        <button onClick={() => setShowLeaveConfirm(true)} className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-error text-sm">✕</button>
+      </div>
+      <AnimatePresence>
+        {showLeaveConfirm && <LeaveConfirm onConfirm={leaveGame} onCancel={() => setShowLeaveConfirm(false)} />}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function MultiplayerTargetRow() {
+  const targetLength = useMultiplayerStore((s) => s.targetLength)
+  const filledWords = useMultiplayerStore((s) => s.filledWords)
+
+  const cells: { char: string; wordIdx: number }[] = []
+  filledWords.forEach((word, wordIdx) => {
+    for (const char of word) cells.push({ char, wordIdx })
+  })
+  const emptyCount = targetLength - cells.length
+
+  return (
+    <div className="px-3 py-3">
+      <div className="flex flex-row-reverse flex-wrap justify-center gap-[3px]">
+        {cells.map((cell, i) => (
+          <motion.div key={`f-${i}`} initial={{ scale: 0 }} animate={{ scale: 1 }}
+            className={`w-[22px] h-[34px] rounded-md flex items-center justify-center text-sm font-bold
+              ${cell.wordIdx % 2 === 0 ? 'bg-accent/30 border border-accent/50' : 'bg-purple-900/40 border border-purple-700/50'}`}>
+            {cell.char}
+          </motion.div>
+        ))}
+        {Array.from({ length: emptyCount }).map((_, i) => (
+          <div key={`e-${i}`} className="w-[22px] h-[34px] rounded-md border border-gray-700/50 bg-gray-800/20" />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function MultiplayerWordBuilder() {
+  const currentWord = useMultiplayerStore((s) => s.currentWord)
+  const clearWord = useMultiplayerStore((s) => s.clearWord)
+  const submitWord = useMultiplayerStore((s) => s.submitWord)
+  const undoLastWord = useMultiplayerStore((s) => s.undoLastWord)
+  const filledWords = useMultiplayerStore((s) => s.filledWords)
+  const status = useMultiplayerStore((s) => s.status)
+  const muted = useMultiplayerStore((s) => s.muted)
+
+  if (status !== 'playing') return null
+
+  const handleSubmit = () => {
+    const prev = useMultiplayerStore.getState().score
+    submitWord()
+    const next = useMultiplayerStore.getState()
+    if (next.status === 'finished') playPerfectFit(muted)
+    else if (next.score > prev) playValidWord(muted)
+    else if (next.feedback?.type === 'error') playInvalidWord(muted)
+  }
+
+  return (
+    <div className="mx-4 p-3 rounded-xl bg-builder border border-gray-800/50 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <motion.button whileTap={{ scale: 0.9 }} onClick={clearWord}
+          className="w-11 h-11 rounded-xl bg-error/20 text-error text-lg font-bold flex items-center justify-center shrink-0">✕</motion.button>
+        <div className="flex-1 min-h-[44px] flex items-center justify-center rounded-xl bg-gray-800/30 px-3">
+          <span className="text-2xl font-bold tracking-wider">
+            {currentWord || <span className="text-gray-600 text-base">הקש על אותיות</span>}
+          </span>
+        </div>
+        <motion.button whileTap={{ scale: 0.9 }} onClick={handleSubmit} disabled={!currentWord}
+          className={`w-11 h-11 rounded-xl text-lg font-bold flex items-center justify-center shrink-0
+            ${currentWord ? 'bg-success/20 text-success' : 'bg-gray-800/30 text-gray-600'}`}>✓</motion.button>
+      </div>
+      {filledWords.length > 0 && !currentWord && (
+        <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} whileTap={{ scale: 0.95 }} onClick={undoLastWord}
+          className="w-full py-1.5 rounded-lg text-xs text-gray-400 bg-gray-800/30 hover:text-white transition-colors">
+          ↩ הסר מילה אחרונה ({filledWords[filledWords.length - 1]})
+        </motion.button>
+      )}
+    </div>
+  )
+}
+
+function MultiplayerLetterTiles() {
+  const letters = useMultiplayerStore((s) => s.letters)
+  const addLetterByIndex = useMultiplayerStore((s) => s.addLetterByIndex)
+  const usedTileIndices = useMultiplayerStore((s) => s.usedTileIndices)
+  const status = useMultiplayerStore((s) => s.status)
+  const muted = useMultiplayerStore((s) => s.muted)
+
+  if (status !== 'playing') return null
+
+  return (
+    <div className="px-4 py-2 shrink-0">
+      <div className="flex flex-wrap justify-center gap-2 max-w-[360px] mx-auto">
+        {letters.map((letter, i) => {
+          const isUsed = usedTileIndices.includes(i)
+          return (
+            <motion.button key={`${letter}-${i}`}
+              whileTap={isUsed ? {} : { scale: 0.92 }}
+              onClick={() => { if (!isUsed) { addLetterByIndex(i); playTileTap(muted) } }}
+              disabled={isUsed}
+              className={`w-[52px] h-[52px] rounded-xl border-2 text-xl font-bold shadow-lg shadow-black/30 transition-colors duration-100
+                ${isUsed ? 'bg-tile/30 border-transparent text-white/25' : 'bg-tile border-transparent text-white active:border-accent active:bg-accent/20'}`}>
+              {letter}
+            </motion.button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function MultiplayerFeedback() {
+  const feedback = useMultiplayerStore((s) => s.feedback)
+  return (
+    <div className="h-8 flex items-center justify-center px-4">
+      <AnimatePresence mode="wait">
+        {feedback && (
+          <motion.div key={feedback.text} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+            className={`text-sm font-medium ${feedback.type === 'success' ? 'text-success' : feedback.type === 'error' ? 'text-error' : feedback.type === 'warning' ? 'text-yellow-400' : 'text-accent'}`}>
+            {feedback.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function MultiplayerResults() {
+  const status = useMultiplayerStore((s) => s.status)
+  const players = useMultiplayerStore((s) => s.players)
+  const playerId = useMultiplayerStore((s) => s.playerId)
+  const score = useMultiplayerStore((s) => s.score)
+  const filledWords = useMultiplayerStore((s) => s.filledWords)
+  const targetLength = useMultiplayerStore((s) => s.targetLength)
+  const leaveGame = useMultiplayerStore((s) => s.leaveGame)
+
+  if (status !== 'finished') return null
+
+  // Check if all players finished
+  const allFinished = players.every((p) => p.finished || p.id === playerId)
+  const myLen = filledWords.reduce((s, w) => s + w.length, 0)
+  const myPerfectFit = myLen === targetLength
+
+  // Update own state in player list for display
+  const allPlayers = players.map((p) =>
+    p.id === playerId ? { ...p, score, filledLength: myLen, finished: true, perfectFit: myPerfectFit } : p
+  ).sort((a, b) => b.score - a.score)
+
+  const winner = allPlayers[0]
+  const isWinner = winner?.id === playerId
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6">
+
+      {!allFinished && (
+        <div className="text-center mb-6">
+          <div className="text-3xl mb-2">{myPerfectFit ? '🎉' : '⏳'}</div>
+          <p className="text-gray-400 animate-pulse">...ממתין לשחקנים אחרים</p>
+        </div>
+      )}
+
+      <h2 className="text-2xl font-bold text-accent mb-4">{allFinished ? '!תוצאות' : 'הניקוד שלך'}</h2>
+
+      {/* Scoreboard */}
+      <div className="w-full max-w-[300px] space-y-2 mb-6">
+        {allPlayers.map((p, i) => (
+          <motion.div key={p.id}
+            initial={{ x: 20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: i * 0.1 }}
+            className={`flex items-center justify-between px-4 py-3 rounded-xl ${
+              p.id === playerId ? 'bg-accent/20 border border-accent/50' : 'bg-tile border border-gray-700/40'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{i === 0 && allFinished ? '👑' : `${i + 1}.`}</span>
+              <span className="text-white font-medium">{p.name}</span>
+              {p.id === playerId && <span className="text-xs text-accent">(אתה)</span>}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-white font-bold">{p.score}</span>
+              {p.perfectFit && <span className="text-success text-xs">Perfect</span>}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      <button onClick={leaveGame}
+        className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg shadow-accent/30">
+        תפריט ראשי
+      </button>
+    </motion.div>
+  )
+}
+
+function useMultiplayerTimer() {
+  const tick = useMultiplayerStore((s) => s.tick)
+  const status = useMultiplayerStore((s) => s.status)
+  const ref = useRef<NodeJS.Timeout | null>(null)
+  useEffect(() => {
+    if (status === 'playing') {
+      ref.current = setInterval(tick, 1000)
+    }
+    return () => { if (ref.current) clearInterval(ref.current) }
+  }, [status, tick])
+}
+
+function MultiplayerGame() {
+  useMultiplayerTimer()
+  const status = useMultiplayerStore((s) => s.status)
+
+  return (
+    <>
+      {(status === 'choose' || status === 'waiting' || status === 'lobby' || status === 'creating' || status === 'joining') && (
+        <MultiplayerLobby />
+      )}
+      <MultiplayerCountdown />
+      {(status === 'playing' || status === 'finished') && (
+        <>
+          <MultiplayerTopBar />
+          <MultiplayerOpponentBars />
+          <MultiplayerTargetRow />
+          <MultiplayerFeedback />
+          <div className="flex-1 min-h-2" />
+          <div className="shrink-0 pb-safe">
+            <MultiplayerWordBuilder />
+            <div className="h-2" />
+            <MultiplayerLetterTiles />
+            <div className="h-2" />
+          </div>
+        </>
+      )}
+      <AnimatePresence>
+        <MultiplayerResults />
+      </AnimatePresence>
+    </>
+  )
+}
+
 // ─── Home Screen ───
 function HomeScreen() {
   const startGame = useGameStore((s) => s.startGame)
@@ -792,6 +1299,8 @@ function HomeScreen() {
   const bestStageScoreRush = useGameStore((s) => s.bestStageScoreRush)
   const bestStageGrid = useGridStore((s) => s.bestStageGrid)
   const startGrid = useGridStore((s) => s.startGrid)
+  const mpStatus = useMultiplayerStore((s) => s.status)
+  const setMpChoose = () => useMultiplayerStore.setState({ status: 'creating' as any })
 
   const modes: { key: string; label: string; best: string; delay: number; onClick: () => void }[] = [
     {
@@ -821,6 +1330,13 @@ function HomeScreen() {
       best: bestStageGrid > 0 ? `שלב ${bestStageGrid}` : '—',
       delay: 0.6,
       onClick: startGrid,
+    },
+    {
+      key: 'multiplayer',
+      label: '👥 מולטיפלייר',
+      best: '2-6',
+      delay: 0.7,
+      onClick: () => useMultiplayerStore.setState({ status: 'choose' }),
     },
   ]
 
@@ -867,39 +1383,35 @@ function HomeScreen() {
 export default function GamePage() {
   const status = useGameStore((s) => s.status)
   const gridStatus = useGridStore((s) => s.status)
+  const mpStatus = useMultiplayerStore((s) => s.status)
 
   useInit()
   useTimer()
 
-  // Grid mode is active if grid store isn't idle
   const isGridMode = gridStatus !== 'idle'
-  // Show home when both stores are idle
-  const showHome = status === 'idle' && gridStatus === 'idle'
+  const isMultiplayerMode = mpStatus !== 'idle'
+  const showHome = status === 'idle' && gridStatus === 'idle' && mpStatus === 'idle'
 
   return (
     <main className="h-dvh flex flex-col max-w-md mx-auto overflow-hidden">
       {showHome && <HomeScreen />}
 
-      {isGridMode ? (
+      {isMultiplayerMode ? (
+        <MultiplayerGame />
+      ) : isGridMode ? (
         <GridGame />
       ) : (
         <>
-          {/* Top section */}
           <TopBar />
           <TargetRow />
           <FeedbackBar />
-
-          {/* Spacer */}
           <div className="flex-1 min-h-4" />
-
-          {/* Bottom controls */}
           <div className="shrink-0 pb-safe">
             <WordBuilder />
             <div className="h-2" />
             <LetterTiles />
             <div className="h-2" />
           </div>
-
           <AnimatePresence>
             {status === 'stage_clear' && <StageClearScreen />}
             {(status === 'won' || status === 'lost') && <ResultScreen />}
