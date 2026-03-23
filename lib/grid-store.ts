@@ -372,6 +372,29 @@ export const useGridStore = create<GridState>((set, get) => ({
         score: score + wordScore,
         feedback: { text: `+${wordScore} נק׳ ✓`, type: 'success' },
       })
+
+      // Check if any remaining unfilled cells are isolated (can't form a 2-letter word)
+      const remaining = newGrid.flatMap((row, r) =>
+        row.map((cell, c) => (cell.active && !cell.filled ? { r, c } : null)).filter(Boolean)
+      ) as { r: number; c: number }[]
+
+      if (remaining.length > 0) {
+        const hasIsolated = remaining.some(({ r, c }) => {
+          const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]]
+          return !dirs.some(([dr, dc]) => {
+            const nr = r + dr, nc = c + dc
+            if (nr < 0 || nr >= newGrid.length || nc < 0 || nc >= newGrid[0].length) return false
+            const neighbor = newGrid[nr][nc]
+            return neighbor.active && !neighbor.filled
+          })
+        })
+        if (hasIsolated) {
+          set({
+            status: 'lost',
+            feedback: { text: '!אין מהלכים אפשריים — נשארו משבצות בודדות', type: 'warning' },
+          })
+        }
+      }
     }
   },
 
