@@ -3,13 +3,13 @@ import './globals.css'
 import { ServiceWorkerRegister } from './sw-register'
 
 export const metadata: Metadata = {
-  title: 'FitWord — משחק מילים',
+  title: 'Exacto — משחק מילים',
   description: 'Fill the row with Hebrew words!',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'FitWord',
+    title: 'Exacto',
   },
 }
 

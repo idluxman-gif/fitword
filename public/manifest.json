@@ -1,6 +1,6 @@
 {
-  "name": "FitWord",
-  "short_name": "FitWord",
+  "name": "Exacto",
+  "short_name": "Exacto",
   "description": "Hebrew word game — fill the row!",
   "start_url": "/",
   "display": "standalone",

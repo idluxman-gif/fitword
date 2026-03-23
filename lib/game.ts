@@ -1,8 +1,7 @@
-import { getAllWords, isValidWord } from './dictionary'
+import { getAllWords, isValidWord, getWordsFromLetters } from './dictionary'
 
 // Hebrew letters weighted by real frequency
 const WEIGHTED_LETTERS: { letter: string; weight: number }[] = [
-  // High frequency
   { letter: 'י', weight: 10 },
   { letter: 'ו', weight: 10 },
   { letter: 'ה', weight: 9 },
@@ -15,7 +14,6 @@ const WEIGHTED_LETTERS: { letter: string; weight: number }[] = [
   { letter: 'נ', weight: 7 },
   { letter: 'ב', weight: 7 },
   { letter: 'כ', weight: 6 },
-  // Medium frequency
   { letter: 'ע', weight: 5 },
   { letter: 'ד', weight: 5 },
   { letter: 'ח', weight: 5 },
@@ -28,17 +26,19 @@ const WEIGHTED_LETTERS: { letter: string; weight: number }[] = [
   { letter: 'ז', weight: 3 },
 ]
 
-// Guaranteed safe preset — letters that form many common words
-const SAFE_PRESET: string[] = ['מ', 'ל', 'ש', 'ר', 'ב', 'ת', 'א']
+// Guaranteed safe preset — 10 letters that form many common words
+const SAFE_PRESET_10: string[] = ['מ', 'ל', 'ש', 'ר', 'ב', 'ת', 'א', 'ה', 'ו', 'י']
+const SAFE_PRESET_7: string[] = ['מ', 'ל', 'ש', 'ר', 'ב', 'ת', 'א']
 
 /**
  * Pick n distinct letters using weighted random selection.
  */
-function pickWeightedLetters(n: number): string[] {
+export function pickWeightedLetters(n: number): string[] {
   const available = [...WEIGHTED_LETTERS]
   const picked: string[] = []
+  const count = Math.min(n, available.length)
 
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < count; i++) {
     const totalWeight = available.reduce((sum, l) => sum + l.weight, 0)
     let rand = Math.random() * totalWeight
     let idx = 0
@@ -50,7 +50,7 @@ function pickWeightedLetters(n: number): string[] {
       }
     }
     picked.push(available[idx].letter)
-    available.splice(idx, 1) // remove to ensure distinct
+    available.splice(idx, 1)
   }
 
   return picked
@@ -72,7 +72,7 @@ export function canFormWord(word: string, letters: string[]): boolean {
  * Find all dictionary words formable from the given letters.
  */
 export function getFormableWords(letters: string[]): string[] {
-  return getAllWords().filter((w) => canFormWord(w, letters))
+  return getWordsFromLetters(letters)
 }
 
 /**
@@ -90,22 +90,33 @@ function checkSolvability(letters: string[], minWords: number = 2): boolean {
 }
 
 /**
- * Generate a new round: 7 letters + target length.
+ * Generate a stage: n letters + target length.
  * Ensures solvability (at least 2 formable words).
  */
-export function generateRound(): { letters: string[]; targetLength: number } {
-  const targetLengths = [13, 14, 15, 16]
-  const targetLength = targetLengths[Math.floor(Math.random() * targetLengths.length)]
-
+export function generateStage(letterCount: number = 10, targetLength: number = 15): {
+  letters: string[]
+  targetLength: number
+} {
   for (let attempt = 0; attempt < 10; attempt++) {
-    const letters = pickWeightedLetters(7)
+    const letters = pickWeightedLetters(letterCount)
     if (checkSolvability(letters, 2)) {
       return { letters, targetLength }
     }
   }
 
   // Fallback to guaranteed safe preset
-  return { letters: [...SAFE_PRESET], targetLength }
+  const preset = letterCount >= 10 ? [...SAFE_PRESET_10] : [...SAFE_PRESET_7]
+  return { letters: preset.slice(0, letterCount), targetLength }
+}
+
+/**
+ * Generate a round for Quick Game mode.
+ * 10 letters, random target length 13-16.
+ */
+export function generateRound(): { letters: string[]; targetLength: number } {
+  const targetLengths = [13, 14, 15, 16]
+  const targetLength = targetLengths[Math.floor(Math.random() * targetLengths.length)]
+  return generateStage(10, targetLength)
 }
 
 /**
@@ -113,22 +124,23 @@ export function generateRound(): { letters: string[]; targetLength: number } {
  */
 export function scoreWord(word: string): number {
   const len = word.length
-  let score = len * 10 // 10 pts per letter
+  let score = len * 10
   if (len >= 4) score += 10
   if (len >= 6) score += 25
   return score
 }
 
-/**
- * Perfect Fit bonus.
- */
+/** Perfect Fit bonus. */
 export function perfectFitBonus(): number {
   return 100
 }
 
-/**
- * Penalty for invalid word attempt.
- */
+/** Stage clear bonus (Endless / Score Rush). */
+export function stageClearBonus(): number {
+  return 50
+}
+
+/** Penalty for invalid word attempt. */
 export function invalidWordPenalty(): number {
   return -10
 }
@@ -145,4 +157,34 @@ export function shortestFormableWordLength(letters: string[]): number {
     }
   }
   return min
+}
+
+/**
+ * Score Rush: get the score target for a given stage.
+ * Stage 1 = 80, Stage 2 = 130, Stage 3 = 180, each subsequent +60.
+ */
+export function getScoreTarget(stage: number): number {
+  if (stage === 1) return 80
+  if (stage === 2) return 130
+  return 180 + (stage - 3) * 60
+}
+
+/**
+ * Score Rush: get the timer duration for a given stage.
+ * Stage 1 = 90s, Stage 2 = 75s, Stage 3 = 60s, Stage 4 = 50s, Stage 5+ = 40s.
+ */
+export function getStageTimer(stage: number): number {
+  if (stage === 1) return 90
+  if (stage === 2) return 75
+  if (stage === 3) return 60
+  if (stage === 4) return 50
+  return 40
+}
+
+/**
+ * Endless: get letter count for a given stage.
+ * Stage 1 = 10, each stage -1, floor at 4.
+ */
+export function getEndlessLetterCount(stage: number): number {
+  return Math.max(4, 11 - stage)
 }
