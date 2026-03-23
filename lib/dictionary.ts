@@ -2927,9 +2927,69 @@ const WORDS: string[] = [
 
 const WORD_SET = new Set(WORDS)
 
-/** Check if a word is valid (exists in dictionary). */
+/**
+ * Hebrew final letters (sofit) mapping.
+ * Regular form → final form (used at end of words).
+ */
+const REGULAR_TO_SOFIT: Record<string, string> = {
+  'כ': 'ך', // כ → ך
+  'מ': 'ם', // מ → ם
+  'נ': 'ן', // נ → ן
+  'פ': 'ף', // פ → ף
+  'צ': 'ץ', // צ → ץ
+}
+const SOFIT_TO_REGULAR: Record<string, string> = {
+  'ך': 'כ', // ך → כ
+  'ם': 'מ', // ם → מ
+  'ן': 'נ', // ן → נ
+  'ף': 'פ', // ף → פ
+  'ץ': 'צ', // ץ → צ
+}
+
+/**
+ * Generate sofit variants of a word for dictionary lookup.
+ * Handles: last char regular→sofit, mid-word sofit→regular.
+ */
+function sofitVariants(word: string): string[] {
+  if (word.length === 0) return [word]
+  const variants = new Set<string>()
+  variants.add(word)
+
+  const lastChar = word[word.length - 1]
+  // Try converting last char to its sofit form
+  if (REGULAR_TO_SOFIT[lastChar]) {
+    variants.add(word.slice(0, -1) + REGULAR_TO_SOFIT[lastChar])
+  }
+  // Try converting last char from sofit to regular
+  if (SOFIT_TO_REGULAR[lastChar]) {
+    variants.add(word.slice(0, -1) + SOFIT_TO_REGULAR[lastChar])
+  }
+
+  // Normalize mid-word sofits to regular form
+  let normalized = ''
+  for (let i = 0; i < word.length; i++) {
+    const ch = word[i]
+    if (i < word.length - 1 && SOFIT_TO_REGULAR[ch]) {
+      normalized += SOFIT_TO_REGULAR[ch]
+    } else {
+      normalized += ch
+    }
+  }
+  variants.add(normalized)
+  // Also try normalized + sofit ending
+  if (normalized.length > 0 && REGULAR_TO_SOFIT[normalized[normalized.length - 1]]) {
+    variants.add(normalized.slice(0, -1) + REGULAR_TO_SOFIT[normalized[normalized.length - 1]])
+  }
+
+  return Array.from(variants)
+}
+
+/** Check if a word is valid. Handles sofit normalization automatically. */
 export function isValidWord(word: string): boolean {
-  return WORD_SET.has(word)
+  for (const variant of sofitVariants(word)) {
+    if (WORD_SET.has(variant)) return true
+  }
+  return false
 }
 
 /** Get all dictionary words (for solvability checks). */
@@ -2939,10 +2999,16 @@ export function getAllWords(): string[] {
 
 /**
  * Get all valid words that can be formed from the given letters.
- * Letters are NOT consumed — set membership check only.
+ * Handles sofit: tiles show regular forms (נ,מ,כ,פ,צ),
+ * dictionary may have sofit at end (ן,ם,ך,ף,ץ).
  */
 export function getWordsFromLetters(letters: string[]): string[] {
   const letterSet = new Set(letters)
+  // Expand with both regular and sofit forms
+  for (const l of letters) {
+    if (REGULAR_TO_SOFIT[l]) letterSet.add(REGULAR_TO_SOFIT[l])
+    if (SOFIT_TO_REGULAR[l]) letterSet.add(SOFIT_TO_REGULAR[l])
+  }
   return WORDS.filter((word) => {
     for (const char of word) {
       if (!letterSet.has(char)) return false
