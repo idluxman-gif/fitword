@@ -11,7 +11,7 @@ Hebrew mobile-first word game. Player taps 7 fixed letter tiles to build words t
 **Name:** FitWord
 **Type:** Game
 **Status:** MVP
-**Deploy URL:** TBD
+**Deploy URL:** https://fitword.vercel.app
 **Repo:** GitHub (idluxman-gif)
 
 ---
