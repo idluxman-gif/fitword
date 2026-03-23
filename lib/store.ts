@@ -288,7 +288,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           score: newScore,
           timeLeft: get().timeLeft + timeBonus,
           status: 'won',
-          feedback: { text: '!Perfect Fit 🎉', type: 'success' },
+          feedback: { text: `!מילוי מושלם 🎉 ${wordScore}+ נק׳`, type: 'success' },
           bestScoreQuick: Math.max(get().bestScoreQuick, newScore),
         })
       } else {
@@ -305,7 +305,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           timeLeft: get().timeLeft + timeBonus,
           timerFlash: timeBonus > 0,
           status: 'stage_clear',
-          feedback: { text: '!Perfect Fit 🎉', type: 'success' },
+          feedback: { text: `!שלב הושלם 🎉 +50 בונוס`, type: 'success' },
           bestStageEndless: mode === 'endless' ? Math.max(get().bestStageEndless, stage) : get().bestStageEndless,
           bestStageScoreRush: mode === 'score_rush' ? Math.max(get().bestStageScoreRush, stage) : get().bestStageScoreRush,
         })
@@ -322,7 +322,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           timeLeft: get().timeLeft + timeBonus,
           timerFlash: true,
           status: 'stage_clear',
-          feedback: { text: `!עברת את היעד ✓`, type: 'success' },
+          feedback: { text: `!עברת את היעד ✓ +50 בונוס שלב`, type: 'success' },
           bestStageScoreRush: Math.max(get().bestStageScoreRush, stage),
         })
       } else {
@@ -334,7 +334,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           timeLeft: get().timeLeft + timeBonus,
           timerFlash: timeBonus > 0,
           feedback: {
-            text: `נשארו ${newRemaining} מקומות .מילה מצוינת ✓`,
+            text: `+${wordScore} נק׳ ✓ נשארו ${newRemaining}`,
             type: 'success',
           },
         })

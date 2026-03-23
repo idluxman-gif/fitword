@@ -149,9 +149,9 @@ export function shuffleCost(): number {
   return 50
 }
 
-/** Perfect Fit bonus. */
+/** Perfect Fit bonus — removed, returns 0. */
 export function perfectFitBonus(): number {
-  return 100
+  return 0
 }
 
 /** Stage clear bonus (Endless / Score Rush). */

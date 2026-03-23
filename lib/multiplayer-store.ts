@@ -424,7 +424,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     const newRemaining = targetLength - newFilledLen
     let newScore = score + wordScore
     const isPerfectFit = newRemaining === 0
-    if (isPerfectFit) newScore += 100
+    // No perfect fit bonus (removed)
 
     set({
       filledWords: newFilledWords,
@@ -432,8 +432,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       usedTileIndices: [],
       score: newScore,
       feedback: isPerfectFit
-        ? { text: '!Perfect Fit 🎉', type: 'success' }
-        : { text: `נשארו ${newRemaining} מקומות .מילה מצוינת ✓`, type: 'success' },
+        ? { text: `!מילוי מושלם 🎉 +${wordScore} נק׳`, type: 'success' }
+        : { text: `+${wordScore} נק׳ ✓ נשארו ${newRemaining}`, type: 'success' },
     })
     if (isPerfectFit) {
       get().finishRound() // ends round for ALL players

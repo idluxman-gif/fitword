@@ -351,7 +351,7 @@ export const useGridStore = create<GridState>((set, get) => ({
     const allFilled = newGrid.every((row) => row.every((cell) => !cell.active || cell.filled))
 
     if (allFilled) {
-      const totalScore = score + wordScore + 100 // perfect bonus
+      const totalScore = score + wordScore // no perfect fit bonus
       saveBest('bestStageGrid', get().stage)
       set({
         grid: newGrid,
@@ -360,7 +360,7 @@ export const useGridStore = create<GridState>((set, get) => ({
         usedTileIndices: [],
         score: totalScore,
         status: 'stage_clear',
-        feedback: { text: '!הרשת מלאה 🎉', type: 'success' },
+        feedback: { text: `!הרשת מלאה 🎉 +50 בונוס שלב`, type: 'success' },
         bestStageGrid: Math.max(get().bestStageGrid, get().stage),
       })
     } else {
@@ -370,7 +370,7 @@ export const useGridStore = create<GridState>((set, get) => ({
         currentWord: '',
         usedTileIndices: [],
         score: score + wordScore,
-        feedback: { text: '.מילה מצוינת ✓', type: 'success' },
+        feedback: { text: `+${wordScore} נק׳ ✓`, type: 'success' },
       })
     }
   },
