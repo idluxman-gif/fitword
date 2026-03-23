@@ -11,7 +11,9 @@ const path = require('path')
 const https = require('https')
 
 const BASE = 'https://raw.githubusercontent.com/eyaler/hebrew_wordlists/main/'
-const FILES = [
+// Priority: master list first (base forms), then POS files (inflections).
+const PRIORITY_FILES = ['all_no_fatverb.txt']
+const EXTRA_FILES = [
   'nouns.txt',
   'verbs_no_fatverb.txt',
   'adjectives.txt',
@@ -35,48 +37,61 @@ const HEB_ONLY = /^[\u05D0-\u05EA]+$/
 const MIN_LEN = 2
 const MAX_LEN = 8
 
+async function fetchFile(file) {
+  const url = BASE + file
+  console.log(`  Fetching ${file}...`)
+  const data = await fetch(url)
+  return data.split('\n').map((l) => l.trim()).filter(Boolean)
+}
+
+function isValid(word) {
+  return word.length >= MIN_LEN && word.length <= MAX_LEN && HEB_ONLY.test(word)
+}
+
 async function main() {
   console.log('Fetching Hebrew word lists...')
-  const allWords = new Set()
 
-  for (const file of FILES) {
-    const url = BASE + file
-    console.log(`  Fetching ${file}...`)
-    const data = await fetch(url)
-    const lines = data.split('\n').map((l) => l.trim()).filter(Boolean)
-
-    for (const word of lines) {
-      if (
-        word.length >= MIN_LEN &&
-        word.length <= MAX_LEN &&
-        HEB_ONLY.test(word)
-      ) {
-        allWords.add(word)
-      }
-    }
-    console.log(`    → ${lines.length} raw lines, running total: ${allWords.size}`)
+  // Step 1: Get ALL base forms from master list (these are the important ones)
+  const priorityWords = new Set()
+  for (const file of PRIORITY_FILES) {
+    const lines = await fetchFile(file)
+    for (const w of lines) { if (isValid(w)) priorityWords.add(w) }
+    console.log(`    → ${lines.length} raw, ${priorityWords.size} valid 2-8 char`)
   }
 
-  // Sort for deterministic output
-  const all = Array.from(allWords).sort()
+  // Step 2: Get extra inflected forms from POS files
+  const extraWords = new Set()
+  for (const file of EXTRA_FILES) {
+    const lines = await fetchFile(file)
+    for (const w of lines) {
+      if (isValid(w) && !priorityWords.has(w)) extraWords.add(w)
+    }
+    console.log(`    → ${lines.length} raw, ${extraWords.size} extra`)
+  }
 
-  // Cap per length bucket to keep bundle reasonable (~300KB target).
-  // Short words are most valuable for gameplay.
+  // Combine all words
+  const allWords = new Set([...priorityWords, ...extraWords])
+  const all = Array.from(allWords).sort()
+  console.log(`\nTotal unique: ${all.length}`)
+
+  // Cap per-bucket. Keep ALL short words (most useful for game).
+  // Longer words get sampled — missing an obscure 7-letter inflection is fine.
   function sample(arr, n) {
     if (n >= arr.length) return arr
     const step = arr.length / n
     return Array.from({ length: n }, (_, i) => arr[Math.floor(i * step)])
   }
 
-  const caps = { 2: 250, 3: 3000, 4: 5000, 5: 5000, 6: 3000, 7: 2000, 8: 1000 }
+  // Budget: ~250KB gzipped. All 2-4 char words (~25K), sample 5+ to ~20K more.
+  const caps = { 2: Infinity, 3: Infinity, 4: Infinity, 5: 8000, 6: 5000, 7: 3000, 8: 2000 }
   const sorted = []
   for (let len = 2; len <= 8; len++) {
     const bucket = all.filter((w) => w.length === len)
-    sorted.push(...sample(bucket, caps[len] || bucket.length))
+    const cap = caps[len] || bucket.length
+    sorted.push(...sample(bucket, cap))
   }
   sorted.sort()
 
-  console.log(`\nRaw total: ${all.length} words`)
   console.log(`Final dictionary: ${sorted.length} words`)
   console.log(`  2-char: ${sorted.filter((w) => w.length === 2).length}`)
   console.log(`  3-char: ${sorted.filter((w) => w.length === 3).length}`)
