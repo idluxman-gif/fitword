@@ -861,12 +861,19 @@ function MultiplayerLobby() {
   const joinRoom = useMultiplayerStore((s) => s.joinRoom)
   const startMatch = useMultiplayerStore((s) => s.startMatch)
   const leaveGame = useMultiplayerStore((s) => s.leaveGame)
+  const setPlayerName = useMultiplayerStore((s) => s.setPlayerName)
+  const toggleReady = useMultiplayerStore((s) => s.toggleReady)
   const roomCode = useMultiplayerStore((s) => s.roomCode)
   const players = useMultiplayerStore((s) => s.players)
+  const playerId = useMultiplayerStore((s) => s.playerId)
+  const playerName = useMultiplayerStore((s) => s.playerName)
   const isHost = useMultiplayerStore((s) => s.isHost)
   const status = useMultiplayerStore((s) => s.status)
   const gameMode = useMultiplayerStore((s) => s.gameMode)
   const maxPlayers = useMultiplayerStore((s) => s.maxPlayers)
+
+  const allReady = players.length >= 2 && players.every((p) => p.ready)
+  const myReady = players.find((p) => p.id === playerId)?.ready ?? false
 
   if (status === 'creating' || status === 'joining') {
     return (
@@ -889,22 +896,52 @@ function MultiplayerLobby() {
           <p className="text-gray-500 text-xs mt-1">שתפו את הקוד עם חברים</p>
         </div>
 
+        {/* My name input */}
+        <div className="w-full max-w-[280px] mb-3">
+          <input
+            type="text"
+            value={playerName}
+            onChange={(e) => setPlayerName(e.target.value.slice(0, 12))}
+            placeholder="השם שלך"
+            maxLength={12}
+            className="w-full text-center text-lg font-bold bg-tile border-2 border-gray-700 rounded-xl py-2 px-3 text-white placeholder-gray-600 focus:border-accent outline-none"
+          />
+        </div>
+
         {/* Player list */}
-        <div className="w-full max-w-[280px] mb-6">
-          <p className="text-gray-400 text-sm mb-2">{players.length}/{maxPlayers} :שחקנים · {MODE_NAMES[gameMode] || gameMode}</p>
+        <div className="w-full max-w-[280px] mb-4">
+          <p className="text-gray-400 text-sm mb-2">{players.length}/{maxPlayers} :שחקנים</p>
           <div className="space-y-2">
-            {players.map((p, i) => (
-              <motion.div
-                key={p.id}
-                initial={{ x: 20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: i * 0.1 }}
-                className="flex items-center justify-between px-4 py-2 rounded-xl bg-tile border border-gray-700/40"
-              >
-                <span className="text-white">{p.name}</span>
-                {i === 0 && <span className="text-xs text-accent">מנהל</span>}
-              </motion.div>
-            ))}
+            {players.map((p, i) => {
+              const isMe = p.id === playerId
+              return (
+                <motion.div
+                  key={p.id}
+                  initial={{ x: 20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: i * 0.1 }}
+                  className={`flex items-center justify-between px-4 py-2 rounded-xl border ${
+                    p.ready ? 'bg-success/10 border-success/40' : 'bg-tile border-gray-700/40'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm ${p.ready ? 'text-success' : 'text-gray-500'}`}>
+                      {p.ready ? '✓' : '○'}
+                    </span>
+                    <span className="text-white">{p.name}</span>
+                    {i === 0 && <span className="text-xs text-accent">👑</span>}
+                  </div>
+                  {isMe && (
+                    <button onClick={toggleReady}
+                      className={`text-xs px-3 py-1 rounded-full font-medium ${
+                        p.ready ? 'bg-success/20 text-success' : 'bg-gray-700 text-gray-300'
+                      }`}>
+                      {p.ready ? '!מוכן' : 'מוכן?'}
+                    </button>
+                  )}
+                </motion.div>
+              )
+            })}
             {players.length < maxPlayers && (
               <div className="flex items-center justify-center px-4 py-2 rounded-xl border border-dashed border-gray-700/40">
                 <span className="text-gray-600 text-sm animate-pulse">...ממתין לשחקנים</span>
@@ -915,16 +952,23 @@ function MultiplayerLobby() {
 
         {/* Buttons */}
         <div className="flex flex-col gap-3 w-full max-w-[280px]">
-          {isHost && players.length >= 2 && (
+          {isHost && (
             <motion.button
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={startMatch}
-              className="px-8 py-4 rounded-2xl bg-success text-white text-xl font-bold shadow-lg shadow-success/30"
+              whileTap={allReady ? { scale: 0.95 } : {}}
+              onClick={allReady ? startMatch : undefined}
+              className={`px-8 py-4 rounded-2xl text-xl font-bold shadow-lg ${
+                allReady
+                  ? 'bg-success text-white shadow-success/30'
+                  : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+              }`}
             >
-              !התחל משחק
+              {allReady ? '!התחל משחק' : '...ממתין שכולם יהיו מוכנים'}
             </motion.button>
+          )}
+          {!isHost && !myReady && (
+            <p className="text-center text-gray-500 text-sm">לחץ &quot;?מוכן&quot; כשאתה מוכן</p>
           )}
           <button onClick={leaveGame} className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium">
             יציאה

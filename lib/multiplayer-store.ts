@@ -18,6 +18,7 @@ export type MultiplayerStatus =
 export interface PlayerState {
   id: string
   name: string
+  ready: boolean
   score: number
   filledLength: number
   finished: boolean
@@ -49,6 +50,8 @@ interface MultiplayerState {
   showLeaveConfirm: boolean
   _unsubscribers: Unsubscribe[]
 
+  setPlayerName: (name: string) => void
+  toggleReady: () => void
   createRoom: (mode: MPGameMode, maxPlayers: number) => Promise<string | null>
   joinRoom: (code: string) => Promise<{ ok: boolean; error?: string }>
   startMatch: () => void
@@ -100,6 +103,25 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   showLeaveConfirm: false,
   _unsubscribers: [],
 
+  setPlayerName: (name: string) => {
+    const { roomCode, playerId } = get()
+    set({ playerName: name })
+    // Update in Firebase
+    if (db && roomCode && playerId) {
+      update(ref(db, `rooms/${roomCode}/players/${playerId}`), { name })
+    }
+  },
+
+  toggleReady: () => {
+    const { roomCode, playerId, players } = get()
+    const me = players.find((p) => p.id === playerId)
+    const newReady = !(me?.ready ?? false)
+    // Update in Firebase
+    if (db && roomCode && playerId) {
+      update(ref(db, `rooms/${roomCode}/players/${playerId}`), { ready: newReady })
+    }
+  },
+
   createRoom: async (mode: MPGameMode, maxPlayers: number) => {
     if (!db) return null
     set({ status: 'creating' })
@@ -113,7 +135,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       : 15
 
     const roomRef = ref(db, `rooms/${code}`)
-    const playerData: PlayerState = { id: playerId, name: 'שחקן 1', score: 0, filledLength: 0, finished: false, perfectFit: false }
+    const playerData: PlayerState = { id: playerId, name: 'שחקן 1', score: 0, filledLength: 0, finished: false, perfectFit: false, ready: false }
 
     await fbSet(roomRef, {
       code,
@@ -165,9 +187,13 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     const unsub4 = onValue(roundEndRef, (snapshot) => {
       const val = snapshot.val()
       if (val && get().status === 'playing') {
-        // Someone finished — end round for everyone
+        // Someone else finished — end round for everyone (no bonus for non-finishers)
         get().broadcastState()
-        set({ status: 'finished', feedback: { text: '!הסיבוב נגמר', type: 'info' } })
+        const finisher = val.by || ''
+        const isMe = finisher === get().playerId
+        if (!isMe) {
+          set({ status: 'finished', feedback: { text: '!הסיבוב נגמר — שחקן אחר סיים ראשון', type: 'info' } })
+        }
       }
     })
 
@@ -190,7 +216,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         // Reset all player scores for this round in local state
         set({
           players: get().players.map((p) => ({
-            ...p, filledLength: 0, finished: false, perfectFit: false,
+            ...p, filledLength: 0, finished: false, perfectFit: false, ready: false,
           })),
         })
       }
@@ -247,7 +273,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
     const playerId = genId()
     const playerName = `שחקן ${existingPlayers + 1}`
-    const playerData: PlayerState = { id: playerId, name: playerName, score: 0, filledLength: 0, finished: false, perfectFit: false }
+    const playerData: PlayerState = { id: playerId, name: playerName, score: 0, filledLength: 0, finished: false, perfectFit: false, ready: false }
 
     // Add self to room
     await fbSet(ref(db, `rooms/${upperCode}/players/${playerId}`), playerData)
@@ -310,7 +336,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           status: 'playing',
           feedback: null,
           players: get().players.map((p) => ({
-            ...p, filledLength: 0, finished: false, perfectFit: false,
+            ...p, filledLength: 0, finished: false, perfectFit: false, ready: false,
           })),
         })
       }
@@ -455,12 +481,15 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
   // Called when THIS player finishes (perfect fit or timeout) → ends round for ALL
   finishRound: () => {
-    const { roomCode, status } = get()
+    const { roomCode, status, playerId, score } = get()
     if (!db || !roomCode || status !== 'playing') return
+    // First to finish gets +40 bonus
+    const FIRST_FINISH_BONUS = 40
+    set({ score: score + FIRST_FINISH_BONUS })
     get().broadcastState()
-    // Write roundEnd to Firebase — all players listen for this
-    fbSet(ref(db, `rooms/${roomCode}/roundEnd`), Date.now())
-    set({ status: 'finished' })
+    // Write roundEnd with finisher ID — all players listen
+    fbSet(ref(db, `rooms/${roomCode}/roundEnd`), { at: Date.now(), by: playerId })
+    set({ status: 'finished', feedback: { text: `!סיימת ראשון +${FIRST_FINISH_BONUS} 🏆`, type: 'success' } })
   },
 
   // Called by host to start next round with new letters for everyone
