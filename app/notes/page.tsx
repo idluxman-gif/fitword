@@ -195,6 +195,82 @@ export default function NotesPage() {
         </ul>
       </Section>
 
+      {/* Prompts Section */}
+      <Section title="Prompts">
+        <PromptEntry
+          title="Sprint 1 — Verification Report"
+          date="March 23, 2026"
+        >
+          <p className="mb-4">
+            After building all Sprint 1 features, a full verification was performed with the dev server running.
+            Every game state was tested and confirmed working. Below is the complete output.
+          </p>
+
+          <h4 className="text-white font-semibold mt-6 mb-2">Screenshots</h4>
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <ScreenshotCard src="/screenshots/01-start.jpg" label="Start Screen" />
+            <ScreenshotCard src="/screenshots/02-game.jpg" label="Game Screen" />
+            <ScreenshotCard src="/screenshots/03-building.jpg" label="Word Building" />
+            <ScreenshotCard src="/screenshots/04-feedback.jpg" label="Error Feedback" />
+            <ScreenshotCard src="/screenshots/05-valid-word.jpg" label="Valid Word Accepted" />
+          </div>
+
+          <h4 className="text-white font-semibold mt-6 mb-2">Files Created</h4>
+          <Table rows={[
+            ['app/page.tsx', 'Game screen — start, playing, result states'],
+            ['app/layout.tsx', 'RTL layout, PWA meta, viewport config'],
+            ['app/globals.css', 'Tailwind + safe-area + mobile optimizations'],
+            ['app/sw-register.tsx', 'Service worker registration'],
+            ['lib/dictionary.ts', '~300 Hebrew words, isValidWord() + getAllWords()'],
+            ['lib/game.ts', 'Round generation (weighted letters, solvability check), scoring'],
+            ['lib/store.ts', 'Zustand store with full game state + actions'],
+            ['public/manifest.json', 'PWA manifest'],
+            ['public/sw.js', 'Basic service worker (app shell caching)'],
+          ]} />
+
+          <h4 className="text-white font-semibold mt-6 mb-2">Verification Results</h4>
+          <p className="mb-3">
+            The preview server was started and all features verified with no console errors:
+          </p>
+          <ol className="list-decimal list-inside space-y-2 text-gray-300">
+            <li><strong className="text-white">Start screen</strong> renders and starts game on tap</li>
+            <li><strong className="text-white">Game screen</strong> shows timer, score, remaining slots, target row, word builder, letter tiles</li>
+            <li><strong className="text-white">Letter tapping</strong> builds words in the builder area</li>
+            <li><strong className="text-white">Word submission</strong> works — tested &quot;פה&quot;: accepted, score updated to 20 (2×10pts), row filled RTL with spring animation</li>
+            <li><strong className="text-white">Feedback messages</strong> display correctly — green for valid (&quot;מילה מצוינת ✓&quot;), red for invalid (&quot;לא במילון ✗&quot;)</li>
+            <li><strong className="text-white">Loss screen</strong> shows on timer expiry with correct stats (emoji, remaining chars, score, words played)</li>
+            <li><strong className="text-white">&quot;Play again&quot;</strong> instantly starts a new round with fresh letters — no navigation, no friction</li>
+            <li><strong className="text-white">No console errors</strong> — clean runtime</li>
+          </ol>
+
+          <h4 className="text-white font-semibold mt-6 mb-2">Scoring Verified</h4>
+          <ul className="list-disc list-inside space-y-1 text-gray-300">
+            <li>2-letter word &quot;פה&quot; → 20 points (2 letters × 10pts)</li>
+            <li>Invalid word attempt → −10 penalty applied correctly</li>
+            <li>Score display updates in real-time</li>
+            <li>Remaining slots counter decrements correctly after each valid word</li>
+          </ul>
+
+          <h4 className="text-white font-semibold mt-6 mb-2">Mobile Layout Verified</h4>
+          <ul className="list-disc list-inside space-y-1 text-gray-300">
+            <li>Tested at 375×812 viewport (iPhone 14)</li>
+            <li>All 7 letter tiles within viewport (5 top row + 2 bottom row, last tile bottom = 796px &lt; 812px)</li>
+            <li>No horizontal scroll</li>
+            <li>RTL layout correct throughout</li>
+            <li>Word builder area clearly separated from letter tiles</li>
+          </ul>
+
+          <h4 className="text-white font-semibold mt-6 mb-2">Build Output</h4>
+          <CodeBlock>{`Route (app)                     Size     First Load JS
+┌ ○ /                           46.9 kB         134 kB
+└ ○ /_not-found                 873 B          88.2 kB
++ First Load JS shared by all   87.3 kB
+
+○  (Static)  prerendered as static content
+✓ Build completed successfully`}</CodeBlock>
+        </PromptEntry>
+      </Section>
+
       <footer className="mt-12 pt-6 border-t border-gray-800 text-sm text-gray-500">
         Built with Claude Code · Sprint 1 · {new Date().toLocaleDateString('en-IL')}
       </footer>
@@ -245,6 +321,28 @@ function ScreenDesc({ desc, status }: { desc: string; status: string }) {
     <div className="p-3 bg-builder rounded-lg border border-gray-700">
       <p className="text-gray-300 text-sm">{desc}</p>
       <p className="text-xs mt-1 text-success">{status}</p>
+    </div>
+  )
+}
+
+function PromptEntry({ title, date, children }: { title: string; date: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-8 p-4 bg-gray-900/40 rounded-xl border border-gray-800">
+      <div className="flex items-baseline justify-between mb-3">
+        <h3 className="text-xl font-bold text-accent">{title}</h3>
+        <span className="text-xs text-gray-500">{date}</span>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function ScreenshotCard({ src, label }: { src: string; label: string }) {
+  return (
+    <div className="rounded-lg overflow-hidden border border-gray-700">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt={label} className="w-full h-auto" loading="lazy" />
+      <div className="px-2 py-1 bg-gray-900/80 text-xs text-gray-400 text-center">{label}</div>
     </div>
   )
 }
