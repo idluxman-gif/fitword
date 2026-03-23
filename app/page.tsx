@@ -1218,6 +1218,9 @@ function MultiplayerResults() {
   const score = useMultiplayerStore((s) => s.score)
   const filledWords = useMultiplayerStore((s) => s.filledWords)
   const targetLength = useMultiplayerStore((s) => s.targetLength)
+  const stage = useMultiplayerStore((s) => s.stage)
+  const isHost = useMultiplayerStore((s) => s.isHost)
+  const nextRound = useMultiplayerStore((s) => s.nextRound)
   const leaveGame = useMultiplayerStore((s) => s.leaveGame)
 
   if (status !== 'finished') return null
@@ -1272,10 +1275,21 @@ function MultiplayerResults() {
         ))}
       </div>
 
-      <button onClick={leaveGame}
-        className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg shadow-accent/30">
-        תפריט ראשי
-      </button>
+      <div className="flex flex-col gap-3 w-full max-w-[250px]">
+        {isHost && (
+          <button onClick={nextRound}
+            className="px-8 py-4 rounded-2xl bg-success text-white text-xl font-bold shadow-lg shadow-success/30">
+            !שלב {stage + 1} — המשך
+          </button>
+        )}
+        {!isHost && (
+          <p className="text-center text-gray-400 text-sm animate-pulse">...ממתין למנהל להמשיך</p>
+        )}
+        <button onClick={leaveGame}
+          className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium">
+          יציאה
+        </button>
+      </div>
     </motion.div>
   )
 }
@@ -1295,6 +1309,9 @@ function useMultiplayerTimer() {
 function MultiplayerGame() {
   useMultiplayerTimer()
   const status = useMultiplayerStore((s) => s.status)
+  const gameMode = useMultiplayerStore((s) => s.gameMode)
+
+  const isGridMode = gameMode === 'grid' || gameMode === 'shapes'
 
   return (
     <>
@@ -1306,7 +1323,16 @@ function MultiplayerGame() {
         <>
           <MultiplayerTopBar />
           <MultiplayerOpponentBars />
-          <MultiplayerTargetRow />
+          {isGridMode ? (
+            <>
+              {/* Grid/Shapes mode uses the multiplayer row UI for now —
+                  grid mode in multiplayer fills a row with shared letters, same as other modes.
+                  Full grid board sync requires per-cell state which is future work. */}
+              <MultiplayerTargetRow />
+            </>
+          ) : (
+            <MultiplayerTargetRow />
+          )}
           <MultiplayerFeedback />
           <div className="flex-1 min-h-2" />
           <div className="shrink-0 pb-safe">

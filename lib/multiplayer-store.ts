@@ -24,7 +24,7 @@ export interface PlayerState {
   perfectFit: boolean
 }
 
-export type MPGameMode = 'quick' | 'endless' | 'score_rush' | 'grid'
+export type MPGameMode = 'quick' | 'endless' | 'score_rush' | 'grid' | 'shapes'
 
 interface MultiplayerState {
   roomCode: string | null
@@ -37,6 +37,7 @@ interface MultiplayerState {
   players: PlayerState[]
   letters: string[]
   targetLength: number
+  stage: number
   filledWords: string[]
   currentWord: string
   usedTileIndices: number[]
@@ -57,6 +58,8 @@ interface MultiplayerState {
   undoLastWord: () => void
   tick: () => void
   broadcastState: () => void
+  finishRound: () => void
+  nextRound: () => void
   setShowLeaveConfirm: (show: boolean) => void
   leaveGame: () => void
   cleanup: () => void
@@ -85,6 +88,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   players: [],
   letters: [],
   targetLength: 15,
+  stage: 1,
   filledWords: [],
   currentWord: '',
   usedTileIndices: [],
@@ -156,6 +160,42 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       }
     })
 
+    // Listen for round end (any player finishing ends round for all)
+    const roundEndRef = ref(db, `rooms/${code}/roundEnd`)
+    const unsub4 = onValue(roundEndRef, (snapshot) => {
+      const val = snapshot.val()
+      if (val && get().status === 'playing') {
+        // Someone finished — end round for everyone
+        get().broadcastState()
+        set({ status: 'finished', feedback: { text: '!הסיבוב נגמר', type: 'info' } })
+      }
+    })
+
+    // Listen for next round data (host sends new letters)
+    const nextRoundRef = ref(db, `rooms/${code}/nextRound`)
+    const unsub5 = onValue(nextRoundRef, (snapshot) => {
+      const val = snapshot.val()
+      if (val && val.stage > get().stage) {
+        set({
+          letters: val.letters,
+          targetLength: val.targetLength || 15,
+          stage: val.stage,
+          filledWords: [],
+          currentWord: '',
+          usedTileIndices: [],
+          timeLeft: 90,
+          status: 'playing',
+          feedback: null,
+        })
+        // Reset all player scores for this round in local state
+        set({
+          players: get().players.map((p) => ({
+            ...p, filledLength: 0, finished: false, perfectFit: false,
+          })),
+        })
+      }
+    })
+
     set({
       roomCode: code,
       playerId,
@@ -166,13 +206,14 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       maxPlayers,
       letters,
       targetLength,
+      stage: 1,
       players: [playerData],
       filledWords: [],
       currentWord: '',
       usedTileIndices: [],
       score: 0,
       feedback: null,
-      _unsubscribers: [unsub1, unsub2, unsub3],
+      _unsubscribers: [unsub1, unsub2, unsub3, unsub4, unsub5],
     })
 
     return code
@@ -243,6 +284,38 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       }
     })
 
+    // Listen for round end
+    const roundEndRef = ref(db, `rooms/${upperCode}/roundEnd`)
+    const unsub4 = onValue(roundEndRef, (snapshot) => {
+      const val = snapshot.val()
+      if (val && get().status === 'playing') {
+        get().broadcastState()
+        set({ status: 'finished', feedback: { text: '!הסיבוב נגמר', type: 'info' } })
+      }
+    })
+
+    // Listen for next round data
+    const nextRoundRef = ref(db, `rooms/${upperCode}/nextRound`)
+    const unsub5 = onValue(nextRoundRef, (snapshot) => {
+      const val = snapshot.val()
+      if (val && val.stage > get().stage) {
+        set({
+          letters: val.letters,
+          targetLength: val.targetLength || 15,
+          stage: val.stage,
+          filledWords: [],
+          currentWord: '',
+          usedTileIndices: [],
+          timeLeft: 90,
+          status: 'playing',
+          feedback: null,
+          players: get().players.map((p) => ({
+            ...p, filledLength: 0, finished: false, perfectFit: false,
+          })),
+        })
+      }
+    })
+
     set({
       roomCode: upperCode,
       playerId,
@@ -253,12 +326,13 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       maxPlayers: roomMax,
       letters: room.letters,
       targetLength: room.targetLength || 15,
+      stage: 1,
       filledWords: [],
       currentWord: '',
       usedTileIndices: [],
       score: 0,
       feedback: null,
-      _unsubscribers: [unsub1, unsub2, unsub3],
+      _unsubscribers: [unsub1, unsub2, unsub3, unsub4, unsub5],
     })
 
     return { ok: true }
@@ -331,12 +405,15 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       currentWord: '',
       usedTileIndices: [],
       score: newScore,
-      status: isPerfectFit ? 'finished' : 'playing',
       feedback: isPerfectFit
         ? { text: '!Perfect Fit 🎉', type: 'success' }
         : { text: `נשארו ${newRemaining} מקומות .מילה מצוינת ✓`, type: 'success' },
     })
-    get().broadcastState()
+    if (isPerfectFit) {
+      get().finishRound() // ends round for ALL players
+    } else {
+      get().broadcastState()
+    }
   },
 
   undoLastWord: () => {
@@ -357,8 +434,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     const { status, timeLeft } = get()
     if (status !== 'playing') return
     if (timeLeft <= 1) {
-      set({ timeLeft: 0, status: 'finished' })
-      get().broadcastState()
+      set({ timeLeft: 0 })
+      get().finishRound() // ends round for ALL players
     } else {
       set({ timeLeft: timeLeft - 1 })
     }
@@ -373,6 +450,31 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       filledLength: filledLen,
       finished: status === 'finished',
       perfectFit: filledLen === targetLength,
+    })
+  },
+
+  // Called when THIS player finishes (perfect fit or timeout) → ends round for ALL
+  finishRound: () => {
+    const { roomCode, status } = get()
+    if (!db || !roomCode || status !== 'playing') return
+    get().broadcastState()
+    // Write roundEnd to Firebase — all players listen for this
+    fbSet(ref(db, `rooms/${roomCode}/roundEnd`), Date.now())
+    set({ status: 'finished' })
+  },
+
+  // Called by host to start next round with new letters for everyone
+  nextRound: () => {
+    const { roomCode, isHost, stage } = get()
+    if (!db || !roomCode || !isHost) return
+    const newLetters = pickWeightedLetters(10)
+    const newStage = stage + 1
+    // Clear roundEnd and write nextRound data — all players listen
+    remove(ref(db, `rooms/${roomCode}/roundEnd`))
+    fbSet(ref(db, `rooms/${roomCode}/nextRound`), {
+      letters: newLetters,
+      targetLength: 15,
+      stage: newStage,
     })
   },
 
@@ -401,6 +503,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       status: 'idle',
       gameMode: 'quick',
       maxPlayers: 6,
+      stage: 1,
       players: [],
       letters: [],
       filledWords: [],
