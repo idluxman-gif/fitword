@@ -56,12 +56,26 @@ export function pickWeightedLetters(n: number): string[] {
   return picked
 }
 
+// Sofit mappings for canFormWord
+const REGULAR_TO_SOFIT: Record<string, string> = {
+  'כ': 'ך', 'מ': 'ם', 'נ': 'ן', 'פ': 'ף', 'צ': 'ץ',
+}
+const SOFIT_TO_REGULAR: Record<string, string> = {
+  'ך': 'כ', 'ם': 'מ', 'ן': 'נ', 'ף': 'פ', 'ץ': 'צ',
+}
+
 /**
  * Check if a word can be formed from the given letter set.
  * Since letters are NOT consumed, we just check set membership.
+ * Handles sofit: tiles show regular forms, dictionary may have sofit at end.
  */
 export function canFormWord(word: string, letters: string[]): boolean {
   const letterSet = new Set(letters)
+  // Expand with sofit variants
+  for (const l of letters) {
+    if (REGULAR_TO_SOFIT[l]) letterSet.add(REGULAR_TO_SOFIT[l])
+    if (SOFIT_TO_REGULAR[l]) letterSet.add(SOFIT_TO_REGULAR[l])
+  }
   for (const char of word) {
     if (!letterSet.has(char)) return false
   }
