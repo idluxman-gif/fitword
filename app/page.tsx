@@ -186,6 +186,8 @@ function WordBuilder() {
   const currentWord = useGameStore((s) => s.currentWord)
   const clearWord = useGameStore((s) => s.clearWord)
   const submitWord = useGameStore((s) => s.submitWord)
+  const undoLastWord = useGameStore((s) => s.undoLastWord)
+  const filledWords = useGameStore((s) => s.filledWords)
   const status = useGameStore((s) => s.status)
   const muted = useGameStore((s) => s.muted)
 
@@ -195,7 +197,6 @@ function WordBuilder() {
     const prevScore = useGameStore.getState().score
     submitWord()
     const newState = useGameStore.getState()
-    // Play appropriate sound based on outcome
     if (newState.status === 'won' || newState.status === 'stage_clear') {
       if (newState.feedback?.text.includes('Perfect Fit')) {
         playPerfectFit(muted)
@@ -210,7 +211,7 @@ function WordBuilder() {
   }
 
   return (
-    <div className="mx-4 p-3 rounded-xl bg-builder border border-gray-800/50">
+    <div className="mx-4 p-3 rounded-xl bg-builder border border-gray-800/50 space-y-2">
       <div className="flex items-center justify-between gap-3">
         <motion.button
           whileTap={{ scale: 0.9 }}
@@ -238,6 +239,19 @@ function WordBuilder() {
           ✓
         </motion.button>
       </div>
+
+      {/* Undo last word button */}
+      {filledWords.length > 0 && !currentWord && (
+        <motion.button
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={undoLastWord}
+          className="w-full py-1.5 rounded-lg text-xs text-gray-400 bg-gray-800/30 hover:text-white transition-colors"
+        >
+          ↩ הסר מילה אחרונה ({filledWords[filledWords.length - 1]})
+        </motion.button>
+      )}
     </div>
   )
 }
@@ -245,34 +259,43 @@ function WordBuilder() {
 // ─── Letter Tiles ───
 function LetterTiles() {
   const letters = useGameStore((s) => s.letters)
-  const addLetter = useGameStore((s) => s.addLetter)
+  const addLetterByIndex = useGameStore((s) => s.addLetterByIndex)
+  const usedTileIndices = useGameStore((s) => s.usedTileIndices)
   const status = useGameStore((s) => s.status)
   const muted = useGameStore((s) => s.muted)
 
   if (status !== 'playing') return null
 
-  const handleTap = (letter: string) => {
-    addLetter(letter)
+  const handleTap = (index: number) => {
+    if (usedTileIndices.includes(index)) return
+    addLetterByIndex(index)
     playTileTap(muted)
   }
 
   return (
     <div className="px-4 py-2 shrink-0">
       <div className="flex flex-wrap justify-center gap-2 max-w-[360px] mx-auto">
-        {letters.map((letter, i) => (
+        {letters.map((letter, i) => {
+          const isUsed = usedTileIndices.includes(i)
+          return (
           <motion.button
             key={`${letter}-${i}`}
-            whileTap={{ scale: 0.92 }}
-            onClick={() => handleTap(letter)}
-            className="w-[52px] h-[52px] rounded-xl bg-tile border-2 border-transparent
-              text-xl font-bold text-white
+            whileTap={isUsed ? {} : { scale: 0.92 }}
+            onClick={() => handleTap(i)}
+            disabled={isUsed}
+            className={`w-[52px] h-[52px] rounded-xl border-2
+              text-xl font-bold
               shadow-lg shadow-black/30
-              active:border-accent active:bg-accent/20
-              transition-colors duration-100"
+              transition-colors duration-100
+              ${isUsed
+                ? 'bg-tile/30 border-transparent text-white/25 cursor-not-allowed'
+                : 'bg-tile border-transparent text-white active:border-accent active:bg-accent/20'
+              }`}
           >
             {letter}
           </motion.button>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

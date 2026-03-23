@@ -7,7 +7,6 @@ import {
   stageClearBonus,
   invalidWordPenalty,
   shortestFormableWordLength,
-  canFormWord,
   getScoreTarget,
   getStageTimer,
   getEndlessLetterCount,
@@ -39,6 +38,7 @@ interface GameState {
   targetLength: number
   filledWords: string[]
   currentWord: string
+  usedTileIndices: number[] // which tile indices are used in current word
   score: number
   timeLeft: number
   status: GameStatus
@@ -67,9 +67,10 @@ interface GameState {
   initBests: () => void
   startGame: (mode: GameMode) => void
   nextStage: () => void
-  addLetter: (letter: string) => void
+  addLetterByIndex: (index: number) => void
   clearWord: () => void
   submitWord: () => void
+  undoLastWord: () => void
   tick: () => void
   checkStuck: () => void
   useLetterSwap: () => void
@@ -82,6 +83,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   targetLength: 15,
   filledWords: [],
   currentWord: '',
+  usedTileIndices: [],
   score: 0,
   timeLeft: 90,
   status: 'idle',
@@ -117,6 +119,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         targetLength,
         filledWords: [],
         currentWord: '',
+        usedTileIndices: [],
         score: 0,
         timeLeft: 90,
         status: 'playing',
@@ -134,6 +137,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         targetLength: 15,
         filledWords: [],
         currentWord: '',
+        usedTileIndices: [],
         score: 0,
         timeLeft: 90,
         status: 'playing',
@@ -150,6 +154,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         targetLength: 15,
         filledWords: [],
         currentWord: '',
+        usedTileIndices: [],
         score: 0,
         timeLeft: getStageTimer(1), // 90
         status: 'playing',
@@ -199,20 +204,27 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
   },
 
-  addLetter: (letter: string) => {
-    const { status, currentWord, targetLength, filledWords } = get()
+  addLetterByIndex: (index: number) => {
+    const { status, currentWord, targetLength, filledWords, letters, usedTileIndices } = get()
     if (status !== 'playing') return
+
+    // Tile already used in current word
+    if (usedTileIndices.includes(index)) return
 
     const filledLen = filledWords.reduce((sum, w) => sum + w.length, 0)
     const remaining = targetLength - filledLen
     if (currentWord.length + 1 > remaining) return
 
-    set({ currentWord: currentWord + letter, feedback: null })
+    set({
+      currentWord: currentWord + letters[index],
+      usedTileIndices: [...usedTileIndices, index],
+      feedback: null,
+    })
   },
 
   clearWord: () => {
     if (get().status !== 'playing') return
-    set({ currentWord: '', feedback: null })
+    set({ currentWord: '', usedTileIndices: [], feedback: null })
   },
 
   submitWord: () => {
@@ -223,15 +235,16 @@ export const useGameStore = create<GameState>((set, get) => ({
     const remaining = targetLength - filledLen
 
     if (currentWord.length > remaining) {
-      set({ feedback: { text: '.ארוך מדי ✗', type: 'error' }, currentWord: '' })
+      set({ feedback: { text: '.ארוך מדי ✗', type: 'error' }, currentWord: '', usedTileIndices: [] })
       return
     }
 
-    if (!canFormWord(currentWord, letters)) {
+    // Check duplicate word
+    if (filledWords.includes(currentWord)) {
       set({
-        feedback: { text: '.לא ניתן להרכיב ✗', type: 'error' },
+        feedback: { text: '.מילה כבר שומשה ✗', type: 'error' },
         currentWord: '',
-        score: score + invalidWordPenalty(),
+        usedTileIndices: [],
       })
       return
     }
@@ -240,6 +253,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({
         feedback: { text: '.לא במילון ✗', type: 'error' },
         currentWord: '',
+        usedTileIndices: [],
         score: score + invalidWordPenalty(),
       })
       return
@@ -267,6 +281,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({
           filledWords: newFilledWords,
           currentWord: '',
+          usedTileIndices: [],
           score: newScore,
           timeLeft: get().timeLeft + timeBonus,
           status: 'won',
@@ -282,6 +297,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({
           filledWords: newFilledWords,
           currentWord: '',
+          usedTileIndices: [],
           score: newScore,
           timeLeft: get().timeLeft + timeBonus,
           timerFlash: timeBonus > 0,
@@ -298,6 +314,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({
           filledWords: newFilledWords,
           currentWord: '',
+          usedTileIndices: [],
           score: newScore,
           timeLeft: get().timeLeft + timeBonus,
           timerFlash: true,
@@ -309,6 +326,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({
           filledWords: newFilledWords,
           currentWord: '',
+          usedTileIndices: [],
           score: newScore,
           timeLeft: get().timeLeft + timeBonus,
           timerFlash: timeBonus > 0,
@@ -323,6 +341,22 @@ export const useGameStore = create<GameState>((set, get) => ({
         }
       }
     }
+  },
+
+  undoLastWord: () => {
+    const { status, filledWords, score } = get()
+    if (status !== 'playing' || filledWords.length === 0) return
+
+    const lastWord = filledWords[filledWords.length - 1]
+    const wordScore = scoreWord(lastWord)
+
+    set({
+      filledWords: filledWords.slice(0, -1),
+      score: Math.max(0, score - wordScore),
+      currentWord: '',
+      usedTileIndices: [],
+      feedback: { text: `"${lastWord}" הוסרה ↩`, type: 'info' },
+    })
   },
 
   tick: () => {
