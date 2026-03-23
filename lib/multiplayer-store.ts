@@ -1,16 +1,16 @@
 import { create } from 'zustand'
-import { supabase } from './supabase'
-import { generateStage, scoreWord, pickWeightedLetters } from './game'
+import { db, ref, fbSet, fbGet, onValue, remove, update } from './firebase'
+import { pickWeightedLetters, scoreWord } from './game'
 import { isValidWord } from './dictionary'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import type { Unsubscribe } from 'firebase/database'
 
 export type MultiplayerStatus =
   | 'idle'
-  | 'choose'      // choosing create or join
+  | 'choose'
   | 'creating'
-  | 'waiting'     // host waiting for players
+  | 'waiting'
   | 'joining'
-  | 'lobby'       // in lobby, waiting for host to start
+  | 'lobby'
   | 'countdown'
   | 'playing'
   | 'finished'
@@ -25,23 +25,14 @@ export interface PlayerState {
 }
 
 interface MultiplayerState {
-  // Connection
   roomCode: string | null
   playerId: string
   playerName: string
   isHost: boolean
   status: MultiplayerStatus
-  channel: RealtimeChannel | null
-
-  // Room
   players: PlayerState[]
-  maxPlayers: number
-
-  // Shared game params
   letters: string[]
   targetLength: number
-
-  // Local game state
   filledWords: string[]
   currentWord: string
   usedTileIndices: number[]
@@ -49,14 +40,10 @@ interface MultiplayerState {
   timeLeft: number
   feedback: { text: string; type: 'success' | 'error' | 'warning' | 'info' } | null
   muted: boolean
-
-  // Countdown
   countdownValue: number | null
-
-  // Leave confirmation
   showLeaveConfirm: boolean
+  _unsubscribers: Unsubscribe[]
 
-  // Actions
   createRoom: () => Promise<string | null>
   joinRoom: (code: string) => Promise<{ ok: boolean; error?: string }>
   startMatch: () => void
@@ -72,16 +59,14 @@ interface MultiplayerState {
   toggleMute: () => void
 }
 
-function generatePlayerId(): string {
+function genId(): string {
   return 'p_' + Math.random().toString(36).substring(2, 10)
 }
 
-function generateRoomCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ' // no I/O to avoid confusion
+function genCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
   let code = ''
-  for (let i = 0; i < 4; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)]
-  }
+  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)]
   return code
 }
 
@@ -91,9 +76,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   playerName: '',
   isHost: false,
   status: 'idle',
-  channel: null,
   players: [],
-  maxPlayers: 6,
   letters: [],
   targetLength: 15,
   filledWords: [],
@@ -105,83 +88,61 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   muted: typeof window !== 'undefined' && localStorage.getItem('muted') === 'true',
   countdownValue: null,
   showLeaveConfirm: false,
+  _unsubscribers: [],
 
   createRoom: async () => {
-    if (!supabase) return null
+    if (!db) return null
     set({ status: 'creating' })
 
-    const playerId = generatePlayerId()
-    const code = generateRoomCode()
+    const playerId = genId()
+    const code = genCode()
     const letters = pickWeightedLetters(10)
-    const targetLength = 15
 
-    // Insert room
-    const { error } = await supabase.from('mp_rooms').insert({
+    const roomRef = ref(db, `rooms/${code}`)
+    const playerData: PlayerState = { id: playerId, name: 'שחקן 1', score: 0, filledLength: 0, finished: false, perfectFit: false }
+
+    await fbSet(roomRef, {
       code,
-      host_id: playerId,
+      hostId: playerId,
       letters,
-      target_length: targetLength,
+      targetLength: 15,
       status: 'waiting',
-      players: [{ id: playerId, name: 'שחקן 1' }],
+      players: { [playerId]: playerData },
+      countdown: null,
     })
 
-    if (error) {
-      console.error('Create room error:', error)
-      set({ status: 'idle' })
-      return null
-    }
+    // Listen for player changes
+    const playersRef = ref(db, `rooms/${code}/players`)
+    const unsub1 = onValue(playersRef, (snapshot) => {
+      const data = snapshot.val()
+      if (data) {
+        const playerList: PlayerState[] = Object.values(data)
+        set({ players: playerList })
+      }
+    })
 
-    // Subscribe to channel
-    const channel = supabase.channel(`room:${code}`)
-
-    channel.on('broadcast', { event: 'player_joined' }, ({ payload }) => {
-      const state = get()
-      if (payload.playerId !== state.playerId) {
-        const exists = state.players.some((p) => p.id === payload.playerId)
-        if (!exists) {
-          set({
-            players: [...state.players, {
-              id: payload.playerId,
-              name: payload.name || `שחקן ${state.players.length + 1}`,
-              score: 0,
-              filledLength: 0,
-              finished: false,
-              perfectFit: false,
-            }],
-          })
+    // Listen for countdown
+    const countdownRef = ref(db, `rooms/${code}/countdown`)
+    const unsub2 = onValue(countdownRef, (snapshot) => {
+      const val = snapshot.val()
+      if (val !== null && val !== undefined) {
+        set({ countdownValue: val })
+        if (val === 0) {
+          setTimeout(() => {
+            set({ status: 'playing', countdownValue: null, timeLeft: 90 })
+          }, 800)
         }
       }
     })
 
-    channel.on('broadcast', { event: 'game_state' }, ({ payload }) => {
-      const state = get()
-      if (payload.playerId !== state.playerId) {
-        set({
-          players: state.players.map((p) =>
-            p.id === payload.playerId
-              ? { ...p, score: payload.score, filledLength: payload.filledLength, finished: payload.finished, perfectFit: payload.perfectFit }
-              : p
-          ),
-        })
+    // Listen for room status
+    const statusRef = ref(db, `rooms/${code}/status`)
+    const unsub3 = onValue(statusRef, (snapshot) => {
+      const val = snapshot.val()
+      if (val === 'countdown' && get().status === 'waiting') {
+        set({ status: 'countdown' })
       }
     })
-
-    channel.on('broadcast', { event: 'countdown' }, ({ payload }) => {
-      set({ countdownValue: payload.value })
-      if (payload.value === 0) {
-        setTimeout(() => {
-          set({ status: 'playing', countdownValue: null, timeLeft: 90 })
-        }, 800)
-      }
-    })
-
-    channel.on('broadcast', { event: 'player_left' }, ({ payload }) => {
-      set({
-        players: get().players.filter((p) => p.id !== payload.playerId),
-      })
-    })
-
-    await channel.subscribe()
 
     set({
       roomCode: code,
@@ -189,133 +150,82 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       playerName: 'שחקן 1',
       isHost: true,
       status: 'waiting',
-      channel,
       letters,
-      targetLength,
-      players: [{
-        id: playerId,
-        name: 'שחקן 1',
-        score: 0,
-        filledLength: 0,
-        finished: false,
-        perfectFit: false,
-      }],
+      targetLength: 15,
+      players: [playerData],
       filledWords: [],
       currentWord: '',
       usedTileIndices: [],
       score: 0,
       feedback: null,
+      _unsubscribers: [unsub1, unsub2, unsub3],
     })
 
     return code
   },
 
   joinRoom: async (code: string) => {
-    if (!supabase) return { ok: false, error: 'No connection' }
+    if (!db) return { ok: false, error: 'No connection' }
     set({ status: 'joining' })
-
     const upperCode = code.toUpperCase()
 
-    // Check room exists
-    const { data: room, error } = await supabase
-      .from('mp_rooms')
-      .select('*')
-      .eq('code', upperCode)
-      .single()
+    const roomRef = ref(db, `rooms/${upperCode}`)
+    const snapshot = await fbGet(roomRef)
 
-    if (error || !room) {
-      set({ status: 'idle' })
+    if (!snapshot.exists()) {
+      set({ status: 'choose' })
       return { ok: false, error: 'חדר לא נמצא' }
     }
 
+    const room = snapshot.val()
     if (room.status !== 'waiting') {
-      set({ status: 'idle' })
+      set({ status: 'choose' })
       return { ok: false, error: 'המשחק כבר התחיל' }
     }
 
-    if ((room.players || []).length >= 6) {
-      set({ status: 'idle' })
+    const existingPlayers = room.players ? Object.keys(room.players).length : 0
+    if (existingPlayers >= 6) {
+      set({ status: 'choose' })
       return { ok: false, error: 'החדר מלא' }
     }
 
-    const playerId = generatePlayerId()
-    const playerNum = (room.players || []).length + 1
-    const playerName = `שחקן ${playerNum}`
+    const playerId = genId()
+    const playerName = `שחקן ${existingPlayers + 1}`
+    const playerData: PlayerState = { id: playerId, name: playerName, score: 0, filledLength: 0, finished: false, perfectFit: false }
 
-    // Update room
-    const newPlayers = [...(room.players || []), { id: playerId, name: playerName }]
-    await supabase.from('mp_rooms').update({ players: newPlayers }).eq('code', upperCode)
+    // Add self to room
+    await fbSet(ref(db, `rooms/${upperCode}/players/${playerId}`), playerData)
 
-    // Subscribe to channel
-    const channel = supabase.channel(`room:${upperCode}`)
+    // Listen for player changes
+    const playersRef = ref(db, `rooms/${upperCode}/players`)
+    const unsub1 = onValue(playersRef, (snapshot) => {
+      const data = snapshot.val()
+      if (data) {
+        set({ players: Object.values(data) as PlayerState[] })
+      }
+    })
 
-    channel.on('broadcast', { event: 'player_joined' }, ({ payload }) => {
-      const state = get()
-      if (payload.playerId !== state.playerId) {
-        const exists = state.players.some((p) => p.id === payload.playerId)
-        if (!exists) {
-          set({
-            players: [...state.players, {
-              id: payload.playerId,
-              name: payload.name || `שחקן`,
-              score: 0,
-              filledLength: 0,
-              finished: false,
-              perfectFit: false,
-            }],
-          })
+    // Listen for countdown
+    const countdownRef = ref(db, `rooms/${upperCode}/countdown`)
+    const unsub2 = onValue(countdownRef, (snapshot) => {
+      const val = snapshot.val()
+      if (val !== null && val !== undefined) {
+        set({ countdownValue: val })
+        if (val === 0) {
+          setTimeout(() => {
+            set({ status: 'playing', countdownValue: null, timeLeft: 90 })
+          }, 800)
         }
       }
     })
 
-    channel.on('broadcast', { event: 'game_state' }, ({ payload }) => {
-      const state = get()
-      if (payload.playerId !== state.playerId) {
-        set({
-          players: state.players.map((p) =>
-            p.id === payload.playerId
-              ? { ...p, score: payload.score, filledLength: payload.filledLength, finished: payload.finished, perfectFit: payload.perfectFit }
-              : p
-          ),
-        })
+    // Listen for room status
+    const statusRef = ref(db, `rooms/${upperCode}/status`)
+    const unsub3 = onValue(statusRef, (snapshot) => {
+      const val = snapshot.val()
+      if (val === 'countdown') {
+        set({ status: 'countdown' })
       }
-    })
-
-    channel.on('broadcast', { event: 'countdown' }, ({ payload }) => {
-      set({ countdownValue: payload.value })
-      if (payload.value === 0) {
-        setTimeout(() => {
-          set({ status: 'playing', countdownValue: null, timeLeft: 90 })
-        }, 800)
-      }
-    })
-
-    channel.on('broadcast', { event: 'player_left' }, ({ payload }) => {
-      set({
-        players: get().players.filter((p) => p.id !== payload.playerId),
-      })
-    })
-
-    await channel.subscribe()
-
-    // Build initial player list from room data
-    const existingPlayers: PlayerState[] = (room.players || []).map((p: any, i: number) => ({
-      id: p.id,
-      name: p.name || `שחקן ${i + 1}`,
-      score: 0,
-      filledLength: 0,
-      finished: false,
-      perfectFit: false,
-    }))
-
-    // Add self
-    existingPlayers.push({
-      id: playerId,
-      name: playerName,
-      score: 0,
-      filledLength: 0,
-      finished: false,
-      perfectFit: false,
     })
 
     set({
@@ -324,43 +234,31 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       playerName,
       isHost: false,
       status: 'lobby',
-      channel,
       letters: room.letters,
-      targetLength: room.target_length,
-      players: existingPlayers,
+      targetLength: room.targetLength || 15,
       filledWords: [],
       currentWord: '',
       usedTileIndices: [],
       score: 0,
       feedback: null,
-    })
-
-    // Broadcast that we joined
-    channel.send({
-      type: 'broadcast',
-      event: 'player_joined',
-      payload: { playerId, name: playerName },
+      _unsubscribers: [unsub1, unsub2, unsub3],
     })
 
     return { ok: true }
   },
 
   startMatch: () => {
-    const { channel, isHost } = get()
-    if (!channel || !isHost) return
+    const { roomCode, isHost } = get()
+    if (!db || !roomCode || !isHost) return
+    const database = db // capture for closure
 
-    // Countdown: 3, 2, 1, GO!
+    update(ref(database, `rooms/${roomCode}`), { status: 'countdown' })
     set({ status: 'countdown' })
+
     const values = [3, 2, 1, 0]
     values.forEach((v, i) => {
       setTimeout(() => {
-        channel.send({ type: 'broadcast', event: 'countdown', payload: { value: v } })
-        set({ countdownValue: v })
-        if (v === 0) {
-          setTimeout(() => {
-            set({ status: 'playing', countdownValue: null, timeLeft: 90 })
-          }, 800)
-        }
+        fbSet(ref(database, `rooms/${roomCode}/countdown`), v)
       }, i * 1000)
     })
   },
@@ -409,7 +307,6 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     const newRemaining = targetLength - newFilledLen
     let newScore = score + wordScore
     const isPerfectFit = newRemaining === 0
-
     if (isPerfectFit) newScore += 100
 
     set({
@@ -422,8 +319,6 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         ? { text: '!Perfect Fit 🎉', type: 'success' }
         : { text: `נשארו ${newRemaining} מקומות .מילה מצוינת ✓`, type: 'success' },
     })
-
-    // Broadcast
     get().broadcastState()
   },
 
@@ -431,10 +326,9 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     const { status, filledWords, score } = get()
     if (status !== 'playing' || filledWords.length === 0) return
     const last = filledWords[filledWords.length - 1]
-    const ws = scoreWord(last)
     set({
       filledWords: filledWords.slice(0, -1),
-      score: Math.max(0, score - ws),
+      score: Math.max(0, score - scoreWord(last)),
       currentWord: '',
       usedTileIndices: [],
       feedback: { text: `"${last}" הוסרה ↩`, type: 'info' },
@@ -454,47 +348,40 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   },
 
   broadcastState: () => {
-    const { channel, playerId, score, filledWords, targetLength, status } = get()
-    if (!channel) return
+    const { roomCode, playerId, score, filledWords, targetLength, status } = get()
+    if (!db || !roomCode) return
     const filledLen = filledWords.reduce((s, w) => s + w.length, 0)
-    channel.send({
-      type: 'broadcast',
-      event: 'game_state',
-      payload: {
-        playerId,
-        score,
-        filledLength: filledLen,
-        finished: status === 'finished',
-        perfectFit: filledLen === targetLength,
-      },
+    update(ref(db, `rooms/${roomCode}/players/${playerId}`), {
+      score,
+      filledLength: filledLen,
+      finished: status === 'finished',
+      perfectFit: filledLen === targetLength,
     })
   },
 
   setShowLeaveConfirm: (show: boolean) => set({ showLeaveConfirm: show }),
 
   leaveGame: () => {
-    const { channel, playerId } = get()
-    if (channel) {
-      channel.send({
-        type: 'broadcast',
-        event: 'player_left',
-        payload: { playerId },
-      })
+    const { roomCode, playerId, isHost } = get()
+    if (db && roomCode) {
+      // Remove self from players
+      remove(ref(db, `rooms/${roomCode}/players/${playerId}`))
+      // If host, clean up room
+      if (isHost) {
+        remove(ref(db, `rooms/${roomCode}`))
+      }
     }
     get().cleanup()
   },
 
   cleanup: () => {
-    const { channel } = get()
-    if (channel) {
-      supabase?.removeChannel(channel)
-    }
+    const { _unsubscribers } = get()
+    _unsubscribers.forEach((unsub) => unsub())
     set({
       roomCode: null,
       playerId: '',
       isHost: false,
       status: 'idle',
-      channel: null,
       players: [],
       letters: [],
       filledWords: [],
@@ -505,6 +392,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       feedback: null,
       countdownValue: null,
       showLeaveConfirm: false,
+      _unsubscribers: [],
     })
   },
 
