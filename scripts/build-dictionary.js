@@ -37,6 +37,14 @@ const HEB_ONLY = /^[\u05D0-\u05EA]+$/
 const MIN_LEN = 2
 const MAX_LEN = 8
 
+// Manual supplement — common words missing from source data
+const MANUAL_WORDS = [
+  'לק',    // nail polish
+  'ציוד',  // equipment (in case sampling misses it)
+  'כה',    // thus
+  'בועה',  // bubble
+]
+
 async function fetchFile(file) {
   const url = BASE + file
   console.log(`  Fetching ${file}...`)
@@ -68,6 +76,12 @@ async function main() {
     }
     console.log(`    → ${lines.length} raw, ${extraWords.size} extra`)
   }
+
+  // Step 3: Add manual supplement words
+  for (const w of MANUAL_WORDS) {
+    if (isValid(w)) priorityWords.add(w)
+  }
+  console.log(`  Manual words added: ${MANUAL_WORDS.length}`)
 
   // Combine all words
   const allWords = new Set([...priorityWords, ...extraWords])

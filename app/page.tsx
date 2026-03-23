@@ -3,18 +3,21 @@
 import { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore, type GameMode } from '@/lib/store'
+import { useGridStore, type Direction } from '@/lib/grid-store'
 import { playTileTap, playValidWord, playInvalidWord, playPerfectFit, playStageClear } from '@/lib/sound'
 
 // ─── Init Hook ───
 function useInit() {
   const initBests = useGameStore((s) => s.initBests)
+  const initGridBest = useGridStore((s) => s.initBest)
   const didInit = useRef(false)
   useEffect(() => {
     if (!didInit.current) {
       didInit.current = true
       initBests()
+      initGridBest()
     }
-  }, [initBests])
+  }, [initBests, initGridBest])
 }
 
 // ─── Timer Hook ───
@@ -504,31 +507,320 @@ function ResultScreen() {
   )
 }
 
+// ─── Grid Mode Components ───
+
+const DIR_ARROWS: Record<Direction, string> = { right: '←', down: '↓', left: '→', up: '↑' }
+
+function GridBoard() {
+  const grid = useGridStore((s) => s.grid)
+  const gridRows = useGridStore((s) => s.gridRows)
+  const gridCols = useGridStore((s) => s.gridCols)
+  const selectedCell = useGridStore((s) => s.selectedCell)
+  const direction = useGridStore((s) => s.direction)
+  const selectCell = useGridStore((s) => s.selectCell)
+  const status = useGridStore((s) => s.status)
+
+  if (status !== 'playing') return null
+
+  const cellSize = Math.min(Math.floor((340 - (gridCols - 1) * 4) / gridCols), 60)
+
+  return (
+    <div className="flex flex-col items-center gap-1 px-3 py-2">
+      {grid.map((row, r) => (
+        <div key={r} className="flex flex-row-reverse gap-1">
+          {row.map((cell, c) => {
+            const isSelected = selectedCell?.row === r && selectedCell?.col === c
+            return (
+              <motion.button
+                key={`${r}-${c}`}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => selectCell(r, c)}
+                className={`rounded-lg flex items-center justify-center font-bold text-sm transition-all duration-150
+                  ${cell.filled
+                    ? 'bg-white text-bg border-2 border-white/80'
+                    : isSelected
+                      ? 'bg-accent/40 border-2 border-accent text-white'
+                      : 'bg-gray-800/60 border-2 border-gray-700/40 text-gray-500'
+                  }`}
+                style={{ width: cellSize, height: cellSize }}
+              >
+                {isSelected && !cell.char ? (
+                  <span className="text-accent text-lg">{DIR_ARROWS[direction]}</span>
+                ) : (
+                  cell.char || ''
+                )}
+              </motion.button>
+            )
+          })}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function GridTopBar() {
+  const timeLeft = useGridStore((s) => s.timeLeft)
+  const score = useGridStore((s) => s.score)
+  const stage = useGridStore((s) => s.stage)
+  const grid = useGridStore((s) => s.grid)
+  const muted = useGridStore((s) => s.muted)
+  const toggleMute = useGridStore((s) => s.toggleMute)
+
+  const totalCells = grid.flat().length
+  const filledCells = grid.flat().filter((c) => c.filled).length
+
+  const minutes = Math.floor(timeLeft / 60)
+  const seconds = timeLeft % 60
+  const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`
+  const isLow = timeLeft <= 15
+
+  return (
+    <div className="flex items-center justify-between px-3 py-2">
+      <span className={`text-lg font-bold tabular-nums ${isLow ? 'text-error animate-pulse' : 'text-white'}`}>
+        {timeStr}
+      </span>
+      <span className="text-xs text-gray-400">שלב {stage}</span>
+      <span className="text-lg font-bold text-accent">{score} נק׳</span>
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-gray-400">{filledCells}/{totalCells}</span>
+        <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center text-gray-400">
+          {muted ? '🔇' : '🔊'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function GridWordBuilder() {
+  const currentWord = useGridStore((s) => s.currentWord)
+  const clearWord = useGridStore((s) => s.clearWord)
+  const submitWord = useGridStore((s) => s.submitWord)
+  const undoLastWord = useGridStore((s) => s.undoLastWord)
+  const placedWords = useGridStore((s) => s.placedWords)
+  const selectedCell = useGridStore((s) => s.selectedCell)
+  const status = useGridStore((s) => s.status)
+  const muted = useGridStore((s) => s.muted)
+
+  if (status !== 'playing') return null
+
+  const handleSubmit = () => {
+    const prev = useGridStore.getState().score
+    submitWord()
+    const next = useGridStore.getState()
+    if (next.status === 'stage_clear') playPerfectFit(muted)
+    else if (next.score > prev) playValidWord(muted)
+    else if (next.feedback?.type === 'error') playInvalidWord(muted)
+  }
+
+  return (
+    <div className="mx-4 p-3 rounded-xl bg-builder border border-gray-800/50 space-y-2">
+      {!selectedCell && (
+        <p className="text-center text-gray-500 text-sm py-2">בחר משבצת ברשת</p>
+      )}
+      {selectedCell && (
+        <div className="flex items-center justify-between gap-3">
+          <motion.button whileTap={{ scale: 0.9 }} onClick={clearWord}
+            className="w-11 h-11 rounded-xl bg-error/20 text-error text-lg font-bold flex items-center justify-center shrink-0">
+            ✕
+          </motion.button>
+          <div className="flex-1 min-h-[44px] flex items-center justify-center rounded-xl bg-gray-800/30 px-3">
+            <span className="text-2xl font-bold tracking-wider">
+              {currentWord || <span className="text-gray-600 text-base">הקש על אותיות</span>}
+            </span>
+          </div>
+          <motion.button whileTap={{ scale: 0.9 }} onClick={handleSubmit}
+            disabled={!currentWord}
+            className={`w-11 h-11 rounded-xl text-lg font-bold flex items-center justify-center shrink-0
+              ${currentWord ? 'bg-success/20 text-success' : 'bg-gray-800/30 text-gray-600'}`}>
+            ✓
+          </motion.button>
+        </div>
+      )}
+      {placedWords.length > 0 && !currentWord && (
+        <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} whileTap={{ scale: 0.95 }}
+          onClick={undoLastWord}
+          className="w-full py-1.5 rounded-lg text-xs text-gray-400 bg-gray-800/30 hover:text-white transition-colors">
+          ↩ הסר מילה אחרונה ({placedWords[placedWords.length - 1].word})
+        </motion.button>
+      )}
+    </div>
+  )
+}
+
+function GridLetterTiles() {
+  const letters = useGridStore((s) => s.letters)
+  const addLetterByIndex = useGridStore((s) => s.addLetterByIndex)
+  const usedTileIndices = useGridStore((s) => s.usedTileIndices)
+  const status = useGridStore((s) => s.status)
+  const muted = useGridStore((s) => s.muted)
+
+  if (status !== 'playing') return null
+
+  return (
+    <div className="px-4 py-2 shrink-0">
+      <div className="flex flex-wrap justify-center gap-2 max-w-[360px] mx-auto">
+        {letters.map((letter, i) => {
+          const isUsed = usedTileIndices.includes(i)
+          return (
+            <motion.button key={`${letter}-${i}`}
+              whileTap={isUsed ? {} : { scale: 0.92 }}
+              onClick={() => { if (!isUsed) { addLetterByIndex(i); playTileTap(muted) } }}
+              disabled={isUsed}
+              className={`w-[52px] h-[52px] rounded-xl border-2 text-xl font-bold shadow-lg shadow-black/30 transition-colors duration-100
+                ${isUsed ? 'bg-tile/30 border-transparent text-white/25' : 'bg-tile border-transparent text-white active:border-accent active:bg-accent/20'}`}>
+              {letter}
+            </motion.button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function GridFeedbackBar() {
+  const feedback = useGridStore((s) => s.feedback)
+  return (
+    <div className="h-8 flex items-center justify-center px-4">
+      <AnimatePresence mode="wait">
+        {feedback && (
+          <motion.div key={feedback.text} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+            className={`text-sm font-medium ${feedback.type === 'success' ? 'text-success' : feedback.type === 'error' ? 'text-error' : feedback.type === 'warning' ? 'text-yellow-400' : 'text-accent'}`}>
+            {feedback.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function GridResultScreen() {
+  const status = useGridStore((s) => s.status)
+  const score = useGridStore((s) => s.score)
+  const stage = useGridStore((s) => s.stage)
+  const placedWords = useGridStore((s) => s.placedWords)
+  const startGrid = useGridStore((s) => s.startGrid)
+  const nextGridStage = useGridStore((s) => s.nextGridStage)
+  const goHome = useGridStore((s) => s.goHome)
+
+  if (status === 'stage_clear') {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6">
+        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+          className="text-6xl mb-3">💥</motion.div>
+        <motion.h1 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}
+          className="text-2xl font-bold text-accent mb-2">!שלב {stage} הושלם</motion.h1>
+        <p className="text-lg text-white mb-1">{score} :ניקוד</p>
+        <p className="text-gray-400 mb-6 text-sm">{placedWords.map((p) => p.word).join(' • ')}</p>
+        {/* Burst particles */}
+        {[...Array(10)].map((_, i) => (
+          <motion.div key={i} initial={{ scale: 0, x: 0, y: 0 }}
+            animate={{ scale: [0, 1, 0], x: Math.cos((i * Math.PI) / 5) * 100, y: Math.sin((i * Math.PI) / 5) * 100 }}
+            transition={{ duration: 0.8, delay: 0.05 * i }}
+            className="absolute w-2 h-2 rounded-full bg-accent" />
+        ))}
+        <motion.button initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.5 }}
+          whileTap={{ scale: 0.95 }} onClick={nextGridStage}
+          className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg shadow-accent/30">
+          !שלב הבא
+        </motion.button>
+      </motion.div>
+    )
+  }
+
+  if (status === 'lost') {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6">
+        <motion.div initial={{ scale: 1.5 }} animate={{ scale: 1, rotate: [0, -5, 5, -3, 0] }}
+          transition={{ duration: 0.5 }} className="text-5xl mb-4">💔</motion.div>
+        <h1 className="text-2xl font-bold text-gray-300 mb-2">נגמר הזמן</h1>
+        <p className="text-lg text-gray-400 mb-1">{score} :ניקוד</p>
+        <p className="text-gray-500 mb-6">הגעת לשלב {stage}</p>
+        <div className="flex flex-col gap-3 w-full max-w-[250px]">
+          <motion.button whileTap={{ scale: 0.95 }} onClick={startGrid}
+            className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg shadow-accent/30">!שחק שוב</motion.button>
+          <motion.button whileTap={{ scale: 0.95 }} onClick={goHome}
+            className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium">תפריט ראשי</motion.button>
+        </div>
+      </motion.div>
+    )
+  }
+
+  return null
+}
+
+function useGridTimer() {
+  const tick = useGridStore((s) => s.tick)
+  const status = useGridStore((s) => s.status)
+  const ref = useRef<NodeJS.Timeout | null>(null)
+  useEffect(() => {
+    if (status === 'playing') {
+      ref.current = setInterval(tick, 1000)
+    }
+    return () => { if (ref.current) clearInterval(ref.current) }
+  }, [status, tick])
+}
+
+function GridGame() {
+  useGridTimer()
+
+  return (
+    <>
+      <GridTopBar />
+      <GridBoard />
+      <GridFeedbackBar />
+      <div className="flex-1 min-h-2" />
+      <div className="shrink-0 pb-safe">
+        <GridWordBuilder />
+        <div className="h-2" />
+        <GridLetterTiles />
+        <div className="h-2" />
+      </div>
+      <AnimatePresence>
+        <GridResultScreen />
+      </AnimatePresence>
+    </>
+  )
+}
+
 // ─── Home Screen ───
 function HomeScreen() {
   const startGame = useGameStore((s) => s.startGame)
   const bestScoreQuick = useGameStore((s) => s.bestScoreQuick)
   const bestStageEndless = useGameStore((s) => s.bestStageEndless)
   const bestStageScoreRush = useGameStore((s) => s.bestStageScoreRush)
+  const bestStageGrid = useGridStore((s) => s.bestStageGrid)
+  const startGrid = useGridStore((s) => s.startGrid)
 
-  const modes: { key: GameMode; label: string; best: string; delay: number }[] = [
+  const modes: { key: string; label: string; best: string; delay: number; onClick: () => void }[] = [
     {
       key: 'quick',
       label: 'משחק מהיר',
       best: bestScoreQuick > 0 ? `${bestScoreQuick} נק׳` : '—',
       delay: 0.3,
+      onClick: () => startGame('quick'),
     },
     {
       key: 'endless',
       label: 'אינסוף',
       best: bestStageEndless > 0 ? `שלב ${bestStageEndless}` : '—',
       delay: 0.4,
+      onClick: () => startGame('endless'),
     },
     {
       key: 'score_rush',
       label: 'ריצת ניקוד',
       best: bestStageScoreRush > 0 ? `שלב ${bestStageScoreRush}` : '—',
       delay: 0.5,
+      onClick: () => startGame('score_rush'),
+    },
+    {
+      key: 'grid',
+      label: '🔲 מלא את הרשת',
+      best: bestStageGrid > 0 ? `שלב ${bestStageGrid}` : '—',
+      delay: 0.6,
+      onClick: startGrid,
     },
   ]
 
@@ -558,7 +850,7 @@ function HomeScreen() {
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: m.delay }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => startGame(m.key)}
+            onClick={m.onClick}
             className="px-6 py-4 rounded-2xl bg-accent/90 hover:bg-accent text-white text-lg font-bold
               shadow-lg shadow-accent/20 flex items-center justify-between"
           >
@@ -574,34 +866,46 @@ function HomeScreen() {
 // ─── Main Page ───
 export default function GamePage() {
   const status = useGameStore((s) => s.status)
+  const gridStatus = useGridStore((s) => s.status)
 
   useInit()
   useTimer()
 
+  // Grid mode is active if grid store isn't idle
+  const isGridMode = gridStatus !== 'idle'
+  // Show home when both stores are idle
+  const showHome = status === 'idle' && gridStatus === 'idle'
+
   return (
     <main className="h-dvh flex flex-col max-w-md mx-auto overflow-hidden">
-      {status === 'idle' && <HomeScreen />}
+      {showHome && <HomeScreen />}
 
-      {/* Top section */}
-      <TopBar />
-      <TargetRow />
-      <FeedbackBar />
+      {isGridMode ? (
+        <GridGame />
+      ) : (
+        <>
+          {/* Top section */}
+          <TopBar />
+          <TargetRow />
+          <FeedbackBar />
 
-      {/* Spacer */}
-      <div className="flex-1 min-h-4" />
+          {/* Spacer */}
+          <div className="flex-1 min-h-4" />
 
-      {/* Bottom controls */}
-      <div className="shrink-0 pb-safe">
-        <WordBuilder />
-        <div className="h-2" />
-        <LetterTiles />
-        <div className="h-2" />
-      </div>
+          {/* Bottom controls */}
+          <div className="shrink-0 pb-safe">
+            <WordBuilder />
+            <div className="h-2" />
+            <LetterTiles />
+            <div className="h-2" />
+          </div>
 
-      <AnimatePresence>
-        {status === 'stage_clear' && <StageClearScreen />}
-        {(status === 'won' || status === 'lost') && <ResultScreen />}
-      </AnimatePresence>
+          <AnimatePresence>
+            {status === 'stage_clear' && <StageClearScreen />}
+            {(status === 'won' || status === 'lost') && <ResultScreen />}
+          </AnimatePresence>
+        </>
+      )}
     </main>
   )
 }
