@@ -23,99 +23,66 @@ export interface PlacedWord {
   cells: { row: number; col: number }[]
 }
 
-// Shape templates for "shapes" difficulty. Each is a boolean grid (true = active cell).
-// Shapes must allow words of length ≥ 2 in at least one direction.
-const SHAPE_TEMPLATES: boolean[][][] = [
-  // Heart (5x5)
-  [
-    [false, true, false, true, false],
-    [true, true, true, true, true],
-    [true, true, true, true, true],
-    [false, true, true, true, false],
-    [false, false, true, false, false],
-  ],
-  // T shape (5x5)
-  [
-    [true, true, true, true, true],
-    [false, false, true, false, false],
-    [false, false, true, false, false],
-    [false, false, true, false, false],
-    [false, false, true, false, false],
-  ],
-  // L shape (5x4)
-  [
-    [true, false, false, false],
-    [true, false, false, false],
-    [true, false, false, false],
-    [true, true, true, true],
-    [false, false, false, false],
-  ],
-  // Cross (5x5)
-  [
-    [false, false, true, false, false],
-    [false, false, true, false, false],
-    [true, true, true, true, true],
-    [false, false, true, false, false],
-    [false, false, true, false, false],
-  ],
-  // Diamond (5x5)
-  [
-    [false, false, true, false, false],
-    [false, true, true, true, false],
-    [true, true, true, true, true],
-    [false, true, true, true, false],
-    [false, false, true, false, false],
-  ],
-  // Arrow right (5x5)
-  [
-    [false, false, true, false, false],
-    [false, false, true, true, false],
-    [true, true, true, true, true],
-    [false, false, true, true, false],
-    [false, false, true, false, false],
-  ],
-  // U shape (5x4)
-  [
-    [true, false, false, true],
-    [true, false, false, true],
-    [true, false, false, true],
-    [true, true, true, true],
-    [false, false, false, false],
-  ],
-  // Star-ish (6x6)
-  [
-    [false, false, true, true, false, false],
-    [false, true, true, true, true, false],
-    [true, true, true, true, true, true],
-    [true, true, true, true, true, true],
-    [false, true, true, true, true, false],
-    [false, false, true, true, false, false],
-  ],
-  // Cat face (6x6)
-  [
-    [true, false, false, false, false, true],
-    [true, true, false, false, true, true],
-    [true, true, true, true, true, true],
-    [true, true, true, true, true, true],
-    [false, true, true, true, true, false],
-    [false, false, true, true, false, false],
-  ],
-  // Fish (5x7)
-  [
-    [false, false, true, true, true, false, false],
-    [false, true, true, true, true, true, false],
-    [true, true, true, true, true, true, true],
-    [false, true, true, true, true, true, false],
-    [false, false, true, true, true, false, false],
-  ],
-]
+/**
+ * Procedural shape generator — creates random connected shapes.
+ * Every shape guarantees at least 2 adjacent cells in a line (for words).
+ */
+function generateRandomShape(targetCells: number, maxSize: number): boolean[][] {
+  const size = maxSize
+  const grid: boolean[][] = Array.from({ length: size }, () => Array(size).fill(false))
+
+  // Start from center
+  const center = Math.floor(size / 2)
+  grid[center][center] = true
+  let count = 1
+
+  const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+
+  while (count < targetCells) {
+    // Pick a random active cell and grow from it
+    const activeCells: [number, number][] = []
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        if (grid[r][c]) activeCells.push([r, c])
+      }
+    }
+    const [ar, ac] = activeCells[Math.floor(Math.random() * activeCells.length)]
+    const [dr, dc] = directions[Math.floor(Math.random() * 4)]
+    const nr = ar + dr
+    const nc = ac + dc
+    if (nr >= 0 && nr < size && nc >= 0 && nc < size && !grid[nr][nc]) {
+      grid[nr][nc] = true
+      count++
+    }
+  }
+
+  // Trim empty rows/cols
+  let minR = size, maxR = 0, minC = size, maxC = 0
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (grid[r][c]) {
+        minR = Math.min(minR, r); maxR = Math.max(maxR, r)
+        minC = Math.min(minC, c); maxC = Math.max(maxC, c)
+      }
+    }
+  }
+  return grid.slice(minR, maxR + 1).map((row) => row.slice(minC, maxC + 1))
+}
+
+function getShapeDifficulty(stage: number): { targetCells: number; maxSize: number } {
+  // Progressive: more cells and bigger canvas as stages increase
+  if (stage <= 2) return { targetCells: 8 + stage, maxSize: 5 }
+  if (stage <= 4) return { targetCells: 10 + stage, maxSize: 6 }
+  if (stage <= 7) return { targetCells: 12 + stage, maxSize: 7 }
+  if (stage <= 10) return { targetCells: 15 + stage, maxSize: 8 }
+  return { targetCells: Math.min(18 + stage, 45), maxSize: 9 }
+}
 
 function pickShape(stage: number): { grid: GridCell[][], rows: number, cols: number } {
-  // Later stages get bigger/harder shapes
-  const idx = (stage - 1) % SHAPE_TEMPLATES.length
-  const shape = SHAPE_TEMPLATES[idx]
+  const { targetCells, maxSize } = getShapeDifficulty(stage)
+  const shape = generateRandomShape(targetCells, maxSize)
   const rows = shape.length
-  const cols = shape[0].length
+  const cols = shape[0]?.length || 1
   const grid: GridCell[][] = shape.map((row) =>
     row.map((active) => ({ char: null, filled: !active, active }))
   )

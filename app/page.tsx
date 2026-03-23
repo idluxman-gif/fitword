@@ -566,7 +566,12 @@ function GridBoard() {
 
   if (status !== 'playing') return null
 
-  const cellSize = Math.min(Math.floor((340 - (gridCols - 1) * 4) / gridCols), 60)
+  // Fit grid to screen: consider both width and available height
+  // Reserve ~280px for top bar + feedback + word builder + tiles + padding
+  const availableHeight = typeof window !== 'undefined' ? window.innerHeight - 280 : 400
+  const maxByWidth = Math.floor((340 - (gridCols - 1) * 4) / gridCols)
+  const maxByHeight = Math.floor((availableHeight - (gridRows - 1) * 4) / gridRows)
+  const cellSize = Math.min(maxByWidth, maxByHeight, 56)
 
   return (
     <div className="flex flex-col items-center gap-1 px-3 py-2">
