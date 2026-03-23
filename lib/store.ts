@@ -10,6 +10,8 @@ import {
   getScoreTarget,
   getStageTimer,
   getEndlessLetterCount,
+  shuffleCost,
+  pickWeightedLetters,
 } from './game'
 import { isValidWord } from './dictionary'
 
@@ -74,6 +76,7 @@ interface GameState {
   tick: () => void
   checkStuck: () => void
   useLetterSwap: () => void
+  shuffleLetters: () => void
   toggleMute: () => void
   goHome: () => void
 }
@@ -397,6 +400,23 @@ export const useGameStore = create<GameState>((set, get) => ({
       swapsAvailable: swapsAvailable - 1,
       currentWord: '',
       feedback: { text: '!אותיות חדשות 🔄', type: 'info' },
+    })
+  },
+
+  shuffleLetters: () => {
+    const { status, score } = get()
+    if (status !== 'playing') return
+    if (score < shuffleCost()) {
+      set({ feedback: { text: `נדרשות ${shuffleCost()} נקודות לערבוב ✗`, type: 'error' } })
+      return
+    }
+    const newLetters = pickWeightedLetters(get().letters.length)
+    set({
+      letters: newLetters,
+      score: score - shuffleCost(),
+      currentWord: '',
+      usedTileIndices: [],
+      feedback: { text: `!אותיות חדשות 🔀 (${shuffleCost()}- נק׳)`, type: 'info' },
     })
   },
 

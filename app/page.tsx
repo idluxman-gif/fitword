@@ -227,7 +227,9 @@ function WordBuilder() {
   const clearWord = useGameStore((s) => s.clearWord)
   const submitWord = useGameStore((s) => s.submitWord)
   const undoLastWord = useGameStore((s) => s.undoLastWord)
+  const shuffleLetters = useGameStore((s) => s.shuffleLetters)
   const filledWords = useGameStore((s) => s.filledWords)
+  const score = useGameStore((s) => s.score)
   const status = useGameStore((s) => s.status)
   const muted = useGameStore((s) => s.muted)
 
@@ -281,16 +283,21 @@ function WordBuilder() {
       </div>
 
       {/* Undo last word button */}
-      {filledWords.length > 0 && !currentWord && (
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={undoLastWord}
-          className="w-full py-1.5 rounded-lg text-xs text-gray-400 bg-gray-800/30 hover:text-white transition-colors"
-        >
-          ↩ הסר מילה אחרונה ({filledWords[filledWords.length - 1]})
-        </motion.button>
+      {!currentWord && (
+        <div className="flex gap-2">
+          {filledWords.length > 0 && (
+            <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} whileTap={{ scale: 0.95 }}
+              onClick={undoLastWord}
+              className="flex-1 py-1.5 rounded-lg text-xs text-gray-400 bg-gray-800/30 hover:text-white transition-colors">
+              ↩ ביטול ({filledWords[filledWords.length - 1]})
+            </motion.button>
+          )}
+          <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} whileTap={{ scale: 0.95 }}
+            onClick={shuffleLetters}
+            className={`${filledWords.length > 0 ? '' : 'flex-1'} px-3 py-1.5 rounded-lg text-xs transition-colors ${score >= 50 ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-gray-600 bg-gray-800/20'}`}>
+            🔀 ערבוב (50-)
+          </motion.button>
+        </div>
       )}
     </div>
   )
@@ -566,6 +573,10 @@ function GridBoard() {
       {grid.map((row, r) => (
         <div key={r} className="flex flex-row-reverse gap-1">
           {row.map((cell, c) => {
+            if (!cell.active) {
+              // Inactive cell — invisible spacer
+              return <div key={`${r}-${c}`} style={{ width: cellSize, height: cellSize }} />
+            }
             const isSelected = selectedCell?.row === r && selectedCell?.col === c
             return (
               <motion.button
@@ -596,12 +607,14 @@ function GridBoard() {
 }
 
 function GridTopBar() {
+  const [showLeave, setShowLeave] = useState(false)
   const timeLeft = useGridStore((s) => s.timeLeft)
   const score = useGridStore((s) => s.score)
   const stage = useGridStore((s) => s.stage)
   const grid = useGridStore((s) => s.grid)
   const muted = useGridStore((s) => s.muted)
   const toggleMute = useGridStore((s) => s.toggleMute)
+  const goHome = useGridStore((s) => s.goHome)
 
   const totalCells = grid.flat().length
   const filledCells = grid.flat().filter((c) => c.filled).length
@@ -618,12 +631,16 @@ function GridTopBar() {
       </span>
       <span className="text-xs text-gray-400">שלב {stage}</span>
       <span className="text-lg font-bold text-accent">{score} נק׳</span>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
         <span className="text-sm text-gray-400">{filledCells}/{totalCells}</span>
         <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center text-gray-400">
           {muted ? '🔇' : '🔊'}
         </button>
+        <button onClick={() => setShowLeave(true)} className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-error text-sm">✕</button>
       </div>
+      <AnimatePresence>
+        {showLeave && <LeaveConfirm onConfirm={goHome} onCancel={() => setShowLeave(false)} />}
+      </AnimatePresence>
     </div>
   )
 }
@@ -633,8 +650,10 @@ function GridWordBuilder() {
   const clearWord = useGridStore((s) => s.clearWord)
   const submitWord = useGridStore((s) => s.submitWord)
   const undoLastWord = useGridStore((s) => s.undoLastWord)
+  const shuffleLetters = useGridStore((s) => s.shuffleLetters)
   const placedWords = useGridStore((s) => s.placedWords)
   const selectedCell = useGridStore((s) => s.selectedCell)
+  const score = useGridStore((s) => s.score)
   const status = useGridStore((s) => s.status)
   const muted = useGridStore((s) => s.muted)
 
@@ -673,12 +692,21 @@ function GridWordBuilder() {
           </motion.button>
         </div>
       )}
-      {placedWords.length > 0 && !currentWord && (
-        <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} whileTap={{ scale: 0.95 }}
-          onClick={undoLastWord}
-          className="w-full py-1.5 rounded-lg text-xs text-gray-400 bg-gray-800/30 hover:text-white transition-colors">
-          ↩ הסר מילה אחרונה ({placedWords[placedWords.length - 1].word})
-        </motion.button>
+      {!currentWord && (
+        <div className="flex gap-2">
+          {placedWords.length > 0 && (
+            <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} whileTap={{ scale: 0.95 }}
+              onClick={undoLastWord}
+              className="flex-1 py-1.5 rounded-lg text-xs text-gray-400 bg-gray-800/30 hover:text-white transition-colors">
+              ↩ ביטול ({placedWords[placedWords.length - 1].word})
+            </motion.button>
+          )}
+          <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} whileTap={{ scale: 0.95 }}
+            onClick={shuffleLetters}
+            className={`${placedWords.length > 0 ? '' : 'flex-1'} px-3 py-1.5 rounded-lg text-xs transition-colors ${score >= 50 ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-gray-600 bg-gray-800/20'}`}>
+            🔀 ערבוב (50-)
+          </motion.button>
+        </div>
       )}
     </div>
   )
@@ -775,7 +803,7 @@ function GridResultScreen() {
         <p className="text-lg text-gray-400 mb-1">{score} :ניקוד</p>
         <p className="text-gray-500 mb-6">הגעת לשלב {stage}</p>
         <div className="flex flex-col gap-3 w-full max-w-[250px]">
-          <motion.button whileTap={{ scale: 0.95 }} onClick={startGrid}
+          <motion.button whileTap={{ scale: 0.95 }} onClick={() => startGrid()}
             className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg shadow-accent/30">!שחק שוב</motion.button>
           <motion.button whileTap={{ scale: 0.95 }} onClick={goHome}
             className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium">תפריט ראשי</motion.button>
@@ -1305,6 +1333,7 @@ function HomeScreen() {
   const bestStageEndless = useGameStore((s) => s.bestStageEndless)
   const bestStageScoreRush = useGameStore((s) => s.bestStageScoreRush)
   const bestStageGrid = useGridStore((s) => s.bestStageGrid)
+  const bestStageShapes = useGridStore((s) => s.bestStageShapes)
   const startGrid = useGridStore((s) => s.startGrid)
   const createRoom = useMultiplayerStore((s) => s.createRoom)
 
@@ -1312,7 +1341,8 @@ function HomeScreen() {
     quick: 'משחק מהיר',
     endless: 'אינסוף',
     score_rush: 'ריצת ניקוד',
-    grid: '🔲 מלא את הרשת',
+    grid: '🔲 רשת',
+    shapes: '🔷 צורות',
   }
 
   const modes: { key: string; label: string; best: string; delay: number }[] = [
@@ -1320,12 +1350,14 @@ function HomeScreen() {
     { key: 'endless', label: MODE_LABELS.endless, best: bestStageEndless > 0 ? `שלב ${bestStageEndless}` : '—', delay: 0.4 },
     { key: 'score_rush', label: MODE_LABELS.score_rush, best: bestStageScoreRush > 0 ? `שלב ${bestStageScoreRush}` : '—', delay: 0.5 },
     { key: 'grid', label: MODE_LABELS.grid, best: bestStageGrid > 0 ? `שלב ${bestStageGrid}` : '—', delay: 0.6 },
+    { key: 'shapes', label: MODE_LABELS.shapes, best: bestStageShapes > 0 ? `שלב ${bestStageShapes}` : '—', delay: 0.7 },
   ]
 
   const handleModeClick = (key: string) => {
     if (!isMulti) {
       // Single player
-      if (key === 'grid') startGrid()
+      if (key === 'grid') startGrid('normal')
+      else if (key === 'shapes') startGrid('shapes')
       else startGame(key as GameMode)
     } else {
       // Multiplayer — go to create/join flow for this mode

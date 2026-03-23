@@ -136,12 +136,17 @@ export function generateRound(): { letters: string[]; targetLength: number } {
 /**
  * Calculate score for a valid word.
  */
+const SCORE_TABLE: Record<number, number> = {
+  2: 20, 3: 40, 4: 80, 5: 150, 6: 250, 7: 350, 8: 500,
+}
+
 export function scoreWord(word: string): number {
-  const len = word.length
-  let score = len * 10
-  if (len >= 4) score += 10
-  if (len >= 6) score += 25
-  return score
+  return SCORE_TABLE[word.length] || word.length * 50
+}
+
+/** Cost to shuffle letters. */
+export function shuffleCost(): number {
+  return 50
 }
 
 /** Perfect Fit bonus. */

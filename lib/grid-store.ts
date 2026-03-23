@@ -1,16 +1,18 @@
 import { create } from 'zustand'
-import { pickWeightedLetters, scoreWord } from './game'
+import { pickWeightedLetters, scoreWord, shuffleCost } from './game'
 import { isValidWord } from './dictionary'
 import { FeedbackMessage } from './store'
 
 export type Direction = 'left' | 'up' | 'right' | 'down'
 export type GridStatus = 'idle' | 'playing' | 'won' | 'lost' | 'stage_clear'
+export type GridDifficulty = 'normal' | 'shapes'
 
 const DIRECTION_CYCLE: Direction[] = ['right', 'down', 'left', 'up']
 
 interface GridCell {
   char: string | null
   filled: boolean // true = part of a valid word (white)
+  active: boolean // false = disabled cell (not part of shape)
 }
 
 export interface PlacedWord {
@@ -21,12 +23,112 @@ export interface PlacedWord {
   cells: { row: number; col: number }[]
 }
 
+// Shape templates for "shapes" difficulty. Each is a boolean grid (true = active cell).
+// Shapes must allow words of length ≥ 2 in at least one direction.
+const SHAPE_TEMPLATES: boolean[][][] = [
+  // Heart (5x5)
+  [
+    [false, true, false, true, false],
+    [true, true, true, true, true],
+    [true, true, true, true, true],
+    [false, true, true, true, false],
+    [false, false, true, false, false],
+  ],
+  // T shape (5x5)
+  [
+    [true, true, true, true, true],
+    [false, false, true, false, false],
+    [false, false, true, false, false],
+    [false, false, true, false, false],
+    [false, false, true, false, false],
+  ],
+  // L shape (5x4)
+  [
+    [true, false, false, false],
+    [true, false, false, false],
+    [true, false, false, false],
+    [true, true, true, true],
+    [false, false, false, false],
+  ],
+  // Cross (5x5)
+  [
+    [false, false, true, false, false],
+    [false, false, true, false, false],
+    [true, true, true, true, true],
+    [false, false, true, false, false],
+    [false, false, true, false, false],
+  ],
+  // Diamond (5x5)
+  [
+    [false, false, true, false, false],
+    [false, true, true, true, false],
+    [true, true, true, true, true],
+    [false, true, true, true, false],
+    [false, false, true, false, false],
+  ],
+  // Arrow right (5x5)
+  [
+    [false, false, true, false, false],
+    [false, false, true, true, false],
+    [true, true, true, true, true],
+    [false, false, true, true, false],
+    [false, false, true, false, false],
+  ],
+  // U shape (5x4)
+  [
+    [true, false, false, true],
+    [true, false, false, true],
+    [true, false, false, true],
+    [true, true, true, true],
+    [false, false, false, false],
+  ],
+  // Star-ish (6x6)
+  [
+    [false, false, true, true, false, false],
+    [false, true, true, true, true, false],
+    [true, true, true, true, true, true],
+    [true, true, true, true, true, true],
+    [false, true, true, true, true, false],
+    [false, false, true, true, false, false],
+  ],
+  // Cat face (6x6)
+  [
+    [true, false, false, false, false, true],
+    [true, true, false, false, true, true],
+    [true, true, true, true, true, true],
+    [true, true, true, true, true, true],
+    [false, true, true, true, true, false],
+    [false, false, true, true, false, false],
+  ],
+  // Fish (5x7)
+  [
+    [false, false, true, true, true, false, false],
+    [false, true, true, true, true, true, false],
+    [true, true, true, true, true, true, true],
+    [false, true, true, true, true, true, false],
+    [false, false, true, true, true, false, false],
+  ],
+]
+
+function pickShape(stage: number): { grid: GridCell[][], rows: number, cols: number } {
+  // Later stages get bigger/harder shapes
+  const idx = (stage - 1) % SHAPE_TEMPLATES.length
+  const shape = SHAPE_TEMPLATES[idx]
+  const rows = shape.length
+  const cols = shape[0].length
+  const grid: GridCell[][] = shape.map((row) =>
+    row.map((active) => ({ char: null, filled: !active, active }))
+  )
+  return { grid, rows, cols }
+}
+
 interface GridState {
   // Grid
   gridRows: number
   gridCols: number
   grid: GridCell[][]
   placedWords: PlacedWord[]
+  difficulty: GridDifficulty
 
   // Selection
   selectedCell: { row: number; col: number } | null
@@ -43,10 +145,11 @@ interface GridState {
   stage: number
   muted: boolean
   bestStageGrid: number
+  bestStageShapes: number
 
   // Actions
   initBest: () => void
-  startGrid: () => void
+  startGrid: (difficulty?: GridDifficulty) => void
   nextGridStage: () => void
   selectCell: (row: number, col: number) => void
   addLetterByIndex: (index: number) => void
@@ -54,6 +157,7 @@ interface GridState {
   submitWord: () => void
   undoLastWord: () => void
   tick: () => void
+  shuffleLetters: () => void
   toggleMute: () => void
   goHome: () => void
 }
@@ -73,7 +177,7 @@ function getGridSize(stage: number): { rows: number; cols: number } {
 
 function createEmptyGrid(rows: number, cols: number): GridCell[][] {
   return Array.from({ length: rows }, () =>
-    Array.from({ length: cols }, () => ({ char: null, filled: false }))
+    Array.from({ length: cols }, () => ({ char: null, filled: false, active: true }))
   )
 }
 
@@ -107,6 +211,7 @@ export const useGridStore = create<GridState>((set, get) => ({
   gridCols: 3,
   grid: [],
   placedWords: [],
+  difficulty: 'normal' as GridDifficulty,
   selectedCell: null,
   direction: 'right',
   letters: [],
@@ -119,59 +224,83 @@ export const useGridStore = create<GridState>((set, get) => ({
   stage: 1,
   muted: false,
   bestStageGrid: 0,
+  bestStageShapes: 0,
 
   initBest: () => {
     set({
       bestStageGrid: loadBest('bestStageGrid'),
+      bestStageShapes: loadBest('bestStageShapes'),
       muted: typeof window !== 'undefined' && localStorage.getItem('muted') === 'true',
     })
   },
 
-  startGrid: () => {
-    const { rows, cols } = getGridSize(1)
+  startGrid: (difficulty: GridDifficulty = 'normal') => {
     const letters = pickWeightedLetters(10)
-    set({
-      gridRows: rows,
-      gridCols: cols,
-      grid: createEmptyGrid(rows, cols),
-      placedWords: [],
-      selectedCell: null,
-      direction: 'right',
-      letters,
-      currentWord: '',
-      usedTileIndices: [],
-      score: 0,
-      timeLeft: 120,
-      status: 'playing',
-      feedback: null,
-      stage: 1,
-    })
+    if (difficulty === 'shapes') {
+      const { grid, rows, cols } = pickShape(1)
+      set({
+        difficulty,
+        gridRows: rows,
+        gridCols: cols,
+        grid,
+        placedWords: [],
+        selectedCell: null,
+        direction: 'right',
+        letters,
+        currentWord: '',
+        usedTileIndices: [],
+        score: 0,
+        timeLeft: 120,
+        status: 'playing',
+        feedback: null,
+        stage: 1,
+      })
+    } else {
+      const { rows, cols } = getGridSize(1)
+      set({
+        difficulty,
+        gridRows: rows,
+        gridCols: cols,
+        grid: createEmptyGrid(rows, cols),
+        placedWords: [],
+        selectedCell: null,
+        direction: 'right',
+        letters,
+        currentWord: '',
+        usedTileIndices: [],
+        score: 0,
+        timeLeft: 120,
+        status: 'playing',
+        feedback: null,
+        stage: 1,
+      })
+    }
   },
 
   nextGridStage: () => {
-    const { stage, score } = get()
+    const { stage, score, difficulty } = get()
     const newStage = stage + 1
-    const { rows, cols } = getGridSize(newStage)
     const letters = pickWeightedLetters(10)
-    saveBest('bestStageGrid', stage)
+    const bestKey = difficulty === 'shapes' ? 'bestStageShapes' : 'bestStageGrid'
+    saveBest(bestKey, stage)
 
-    set({
-      gridRows: rows,
-      gridCols: cols,
-      grid: createEmptyGrid(rows, cols),
-      placedWords: [],
-      selectedCell: null,
-      direction: 'right',
-      letters,
-      currentWord: '',
-      usedTileIndices: [],
-      score: score + 50, // stage clear bonus
-      timeLeft: 120,
-      status: 'playing',
-      feedback: null,
-      stage: newStage,
-      bestStageGrid: Math.max(get().bestStageGrid, stage),
-    })
+    if (difficulty === 'shapes') {
+      const { grid, rows, cols } = pickShape(newStage)
+      set({
+        gridRows: rows, gridCols: cols, grid, placedWords: [], selectedCell: null, direction: 'right',
+        letters, currentWord: '', usedTileIndices: [], score: score + 50, timeLeft: 120,
+        status: 'playing', feedback: null, stage: newStage,
+        bestStageShapes: Math.max(get().bestStageShapes, stage),
+      })
+    } else {
+      const { rows, cols } = getGridSize(newStage)
+      set({
+        gridRows: rows, gridCols: cols, grid: createEmptyGrid(rows, cols), placedWords: [], selectedCell: null, direction: 'right',
+        letters, currentWord: '', usedTileIndices: [], score: score + 50, timeLeft: 120,
+        status: 'playing', feedback: null, stage: newStage,
+        bestStageGrid: Math.max(get().bestStageGrid, stage),
+      })
+    }
   },
 
   selectCell: (row: number, col: number) => {
@@ -224,9 +353,9 @@ export const useGridStore = create<GridState>((set, get) => ({
     // Calculate cells the word would occupy
     const cells = getWordCells(selectedCell.row, selectedCell.col, direction, currentWord.length)
 
-    // Check bounds
+    // Check bounds + active cells
     for (const c of cells) {
-      if (c.row < 0 || c.row >= gridRows || c.col < 0 || c.col >= gridCols) {
+      if (c.row < 0 || c.row >= gridRows || c.col < 0 || c.col >= gridCols || !grid[c.row][c.col].active) {
         set({ feedback: { text: '.חורג מהרשת ✗', type: 'error' }, currentWord: '', usedTileIndices: [] })
         return
       }
@@ -244,14 +373,15 @@ export const useGridStore = create<GridState>((set, get) => ({
     // Place the word!
     const newGrid = grid.map((row) => row.map((cell) => ({ ...cell })))
     for (let i = 0; i < cells.length; i++) {
-      newGrid[cells[i].row][cells[i].col] = { char: currentWord[i], filled: true }
+      newGrid[cells[i].row][cells[i].col] = { char: currentWord[i], filled: true, active: true }
     }
 
     const wordScore = scoreWord(currentWord)
     const newPlacedWords = [...placedWords, { word: currentWord, row: selectedCell.row, col: selectedCell.col, direction, cells }]
 
     // Check win: all cells filled
-    const allFilled = newGrid.every((row) => row.every((cell) => cell.filled))
+    // Win: all active cells are filled (inactive cells don't count)
+    const allFilled = newGrid.every((row) => row.every((cell) => !cell.active || cell.filled))
 
     if (allFilled) {
       const totalScore = score + wordScore + 100 // perfect bonus
@@ -295,7 +425,7 @@ export const useGridStore = create<GridState>((set, get) => ({
     const newGrid = grid.map((row) => row.map((cell) => ({ ...cell })))
     for (const c of last.cells) {
       if (!otherCellKeys.has(`${c.row},${c.col}`)) {
-        newGrid[c.row][c.col] = { char: null, filled: false }
+        newGrid[c.row][c.col] = { char: null, filled: false, active: true }
       }
     }
 
@@ -317,6 +447,21 @@ export const useGridStore = create<GridState>((set, get) => ({
     } else {
       set({ timeLeft: timeLeft - 1 })
     }
+  },
+
+  shuffleLetters: () => {
+    const { status, score } = get()
+    if (status !== 'playing' || score < shuffleCost()) {
+      if (status === 'playing') set({ feedback: { text: `נדרשות ${shuffleCost()} נקודות ✗`, type: 'error' } })
+      return
+    }
+    set({
+      letters: pickWeightedLetters(get().letters.length),
+      score: score - shuffleCost(),
+      currentWord: '',
+      usedTileIndices: [],
+      feedback: { text: `!אותיות חדשות 🔀 (${shuffleCost()}- נק׳)`, type: 'info' },
+    })
   },
 
   toggleMute: () => {
