@@ -24,12 +24,16 @@ export interface PlayerState {
   perfectFit: boolean
 }
 
+export type MPGameMode = 'quick' | 'endless' | 'score_rush' | 'grid'
+
 interface MultiplayerState {
   roomCode: string | null
   playerId: string
   playerName: string
   isHost: boolean
   status: MultiplayerStatus
+  gameMode: MPGameMode
+  maxPlayers: number
   players: PlayerState[]
   letters: string[]
   targetLength: number
@@ -44,7 +48,7 @@ interface MultiplayerState {
   showLeaveConfirm: boolean
   _unsubscribers: Unsubscribe[]
 
-  createRoom: () => Promise<string | null>
+  createRoom: (mode: MPGameMode, maxPlayers: number) => Promise<string | null>
   joinRoom: (code: string) => Promise<{ ok: boolean; error?: string }>
   startMatch: () => void
   addLetterByIndex: (index: number) => void
@@ -76,6 +80,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   playerName: '',
   isHost: false,
   status: 'idle',
+  gameMode: 'quick',
+  maxPlayers: 6,
   players: [],
   letters: [],
   targetLength: 15,
@@ -90,13 +96,17 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   showLeaveConfirm: false,
   _unsubscribers: [],
 
-  createRoom: async () => {
+  createRoom: async (mode: MPGameMode, maxPlayers: number) => {
     if (!db) return null
     set({ status: 'creating' })
 
     const playerId = genId()
     const code = genCode()
     const letters = pickWeightedLetters(10)
+    const targetLengths = [13, 14, 15, 16]
+    const targetLength = mode === 'quick'
+      ? targetLengths[Math.floor(Math.random() * targetLengths.length)]
+      : 15
 
     const roomRef = ref(db, `rooms/${code}`)
     const playerData: PlayerState = { id: playerId, name: 'שחקן 1', score: 0, filledLength: 0, finished: false, perfectFit: false }
@@ -104,8 +114,10 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     await fbSet(roomRef, {
       code,
       hostId: playerId,
+      gameMode: mode,
+      maxPlayers,
       letters,
-      targetLength: 15,
+      targetLength,
       status: 'waiting',
       players: { [playerId]: playerData },
       countdown: null,
@@ -150,8 +162,10 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       playerName: 'שחקן 1',
       isHost: true,
       status: 'waiting',
+      gameMode: mode,
+      maxPlayers,
       letters,
-      targetLength: 15,
+      targetLength,
       players: [playerData],
       filledWords: [],
       currentWord: '',
@@ -184,7 +198,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     }
 
     const existingPlayers = room.players ? Object.keys(room.players).length : 0
-    if (existingPlayers >= 6) {
+    const roomMax = room.maxPlayers || 6
+    if (existingPlayers >= roomMax) {
       set({ status: 'choose' })
       return { ok: false, error: 'החדר מלא' }
     }
@@ -234,6 +249,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       playerName,
       isHost: false,
       status: 'lobby',
+      gameMode: room.gameMode || 'quick',
+      maxPlayers: roomMax,
       letters: room.letters,
       targetLength: room.targetLength || 15,
       filledWords: [],
@@ -382,6 +399,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       playerId: '',
       isHost: false,
       status: 'idle',
+      gameMode: 'quick',
+      maxPlayers: 6,
       players: [],
       letters: [],
       filledWords: [],

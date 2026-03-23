@@ -823,6 +823,8 @@ function GridGame() {
 
 // ─── Multiplayer Components ───
 
+const MODE_NAMES: Record<string, string> = { quick: 'משחק מהיר', endless: 'אינסוף', score_rush: 'ריצת ניקוד', grid: 'מלא את הרשת' }
+
 function MultiplayerLobby() {
   const [joinCode, setJoinCode] = useState('')
   const [joinError, setJoinError] = useState('')
@@ -835,6 +837,8 @@ function MultiplayerLobby() {
   const players = useMultiplayerStore((s) => s.players)
   const isHost = useMultiplayerStore((s) => s.isHost)
   const status = useMultiplayerStore((s) => s.status)
+  const gameMode = useMultiplayerStore((s) => s.gameMode)
+  const maxPlayers = useMultiplayerStore((s) => s.maxPlayers)
 
   if (status === 'creating' || status === 'joining') {
     return (
@@ -847,7 +851,8 @@ function MultiplayerLobby() {
   if (status === 'waiting' || status === 'lobby') {
     return (
       <div className="fixed inset-0 bg-bg flex flex-col items-center justify-center z-50 px-6">
-        <h2 className="text-2xl font-bold text-accent mb-4">חדר משחק</h2>
+        <h2 className="text-2xl font-bold text-accent mb-1">חדר משחק</h2>
+        <p className="text-gray-400 text-sm mb-3">{MODE_NAMES[gameMode] || gameMode}</p>
 
         {/* Room code */}
         <div className="mb-4 text-center">
@@ -858,7 +863,7 @@ function MultiplayerLobby() {
 
         {/* Player list */}
         <div className="w-full max-w-[280px] mb-6">
-          <p className="text-gray-400 text-sm mb-2">{players.length}/6 :שחקנים</p>
+          <p className="text-gray-400 text-sm mb-2">{players.length}/{maxPlayers} :שחקנים · {MODE_NAMES[gameMode] || gameMode}</p>
           <div className="space-y-2">
             {players.map((p, i) => (
               <motion.div
@@ -872,7 +877,7 @@ function MultiplayerLobby() {
                 {i === 0 && <span className="text-xs text-accent">מנהל</span>}
               </motion.div>
             ))}
-            {players.length < 6 && (
+            {players.length < maxPlayers && (
               <div className="flex items-center justify-center px-4 py-2 rounded-xl border border-dashed border-gray-700/40">
                 <span className="text-gray-600 text-sm animate-pulse">...ממתין לשחקנים</span>
               </div>
@@ -904,8 +909,8 @@ function MultiplayerLobby() {
   // Choose: create or join
   return (
     <div className="fixed inset-0 bg-bg flex flex-col items-center justify-center z-50 px-6">
-      <h2 className="text-3xl font-bold text-accent mb-2">מולטיפלייר</h2>
-      <p className="text-gray-400 mb-8">עד 6 שחקנים</p>
+      <h2 className="text-3xl font-bold text-accent mb-2">{MODE_NAMES[gameMode] || 'מולטיפלייר'}</h2>
+      <p className="text-gray-400 mb-8">{maxPlayers} שחקנים</p>
 
       {tab === 'choose' && (
         <div className="flex flex-col gap-3 w-full max-w-[280px]">
@@ -915,7 +920,7 @@ function MultiplayerLobby() {
             whileTap={{ scale: 0.95 }}
             onClick={async () => {
               setTab('create')
-              await createRoom()
+              await createRoom(gameMode, maxPlayers)
             }}
             className="px-6 py-4 rounded-2xl bg-accent text-white text-lg font-bold shadow-lg shadow-accent/20"
           >
@@ -1293,52 +1298,40 @@ function MultiplayerGame() {
 
 // ─── Home Screen ───
 function HomeScreen() {
+  const [isMulti, setIsMulti] = useState(false)
+  const [playerCount, setPlayerCount] = useState(2)
   const startGame = useGameStore((s) => s.startGame)
   const bestScoreQuick = useGameStore((s) => s.bestScoreQuick)
   const bestStageEndless = useGameStore((s) => s.bestStageEndless)
   const bestStageScoreRush = useGameStore((s) => s.bestStageScoreRush)
   const bestStageGrid = useGridStore((s) => s.bestStageGrid)
   const startGrid = useGridStore((s) => s.startGrid)
-  const mpStatus = useMultiplayerStore((s) => s.status)
-  const setMpChoose = () => useMultiplayerStore.setState({ status: 'creating' as any })
+  const createRoom = useMultiplayerStore((s) => s.createRoom)
 
-  const modes: { key: string; label: string; best: string; delay: number; onClick: () => void }[] = [
-    {
-      key: 'quick',
-      label: 'משחק מהיר',
-      best: bestScoreQuick > 0 ? `${bestScoreQuick} נק׳` : '—',
-      delay: 0.3,
-      onClick: () => startGame('quick'),
-    },
-    {
-      key: 'endless',
-      label: 'אינסוף',
-      best: bestStageEndless > 0 ? `שלב ${bestStageEndless}` : '—',
-      delay: 0.4,
-      onClick: () => startGame('endless'),
-    },
-    {
-      key: 'score_rush',
-      label: 'ריצת ניקוד',
-      best: bestStageScoreRush > 0 ? `שלב ${bestStageScoreRush}` : '—',
-      delay: 0.5,
-      onClick: () => startGame('score_rush'),
-    },
-    {
-      key: 'grid',
-      label: '🔲 מלא את הרשת',
-      best: bestStageGrid > 0 ? `שלב ${bestStageGrid}` : '—',
-      delay: 0.6,
-      onClick: startGrid,
-    },
-    {
-      key: 'multiplayer',
-      label: '👥 מולטיפלייר',
-      best: '2-6',
-      delay: 0.7,
-      onClick: () => useMultiplayerStore.setState({ status: 'choose' }),
-    },
+  const MODE_LABELS: Record<string, string> = {
+    quick: 'משחק מהיר',
+    endless: 'אינסוף',
+    score_rush: 'ריצת ניקוד',
+    grid: '🔲 מלא את הרשת',
+  }
+
+  const modes: { key: string; label: string; best: string; delay: number }[] = [
+    { key: 'quick', label: MODE_LABELS.quick, best: bestScoreQuick > 0 ? `${bestScoreQuick} נק׳` : '—', delay: 0.3 },
+    { key: 'endless', label: MODE_LABELS.endless, best: bestStageEndless > 0 ? `שלב ${bestStageEndless}` : '—', delay: 0.4 },
+    { key: 'score_rush', label: MODE_LABELS.score_rush, best: bestStageScoreRush > 0 ? `שלב ${bestStageScoreRush}` : '—', delay: 0.5 },
+    { key: 'grid', label: MODE_LABELS.grid, best: bestStageGrid > 0 ? `שלב ${bestStageGrid}` : '—', delay: 0.6 },
   ]
+
+  const handleModeClick = (key: string) => {
+    if (!isMulti) {
+      // Single player
+      if (key === 'grid') startGrid()
+      else startGame(key as GameMode)
+    } else {
+      // Multiplayer — go to create/join flow for this mode
+      useMultiplayerStore.setState({ status: 'choose', gameMode: key as any, maxPlayers: playerCount })
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-bg flex flex-col items-center justify-center z-50 px-6">
@@ -1352,12 +1345,54 @@ function HomeScreen() {
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="text-gray-400 text-lg mb-8"
+        transition={{ delay: 0.15 }}
+        className="text-gray-400 text-lg mb-5"
       >
         !מלא את השורה במילים
       </motion.p>
 
+      {/* Single / Multiplayer toggle */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="flex items-center gap-3 mb-4"
+      >
+        <div className="flex rounded-full bg-tile border border-gray-700/50 p-1">
+          <button
+            onClick={() => setIsMulti(false)}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${!isMulti ? 'bg-accent text-white' : 'text-gray-400'}`}
+          >
+            יחיד
+          </button>
+          <button
+            onClick={() => setIsMulti(true)}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${isMulti ? 'bg-accent text-white' : 'text-gray-400'}`}
+          >
+            מולטי 👥
+          </button>
+        </div>
+
+        {/* Player count dropdown — only in multi mode */}
+        <AnimatePresence>
+          {isMulti && (
+            <motion.select
+              initial={{ opacity: 0, width: 0 }}
+              animate={{ opacity: 1, width: 'auto' }}
+              exit={{ opacity: 0, width: 0 }}
+              value={playerCount}
+              onChange={(e) => setPlayerCount(Number(e.target.value))}
+              className="bg-tile border border-gray-700/50 text-white text-sm rounded-full px-3 py-1.5 outline-none appearance-none cursor-pointer"
+            >
+              {[2, 3, 4, 5, 6].map((n) => (
+                <option key={n} value={n}>{n} שחקנים</option>
+              ))}
+            </motion.select>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Mode buttons */}
       <div className="flex flex-col gap-3 w-full max-w-[280px]">
         {modes.map((m) => (
           <motion.button
@@ -1366,12 +1401,12 @@ function HomeScreen() {
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: m.delay }}
             whileTap={{ scale: 0.95 }}
-            onClick={m.onClick}
+            onClick={() => handleModeClick(m.key)}
             className="px-6 py-4 rounded-2xl bg-accent/90 hover:bg-accent text-white text-lg font-bold
               shadow-lg shadow-accent/20 flex items-center justify-between"
           >
             <span>{m.label}</span>
-            <span className="text-sm font-normal text-white/60">{m.best}</span>
+            <span className="text-sm font-normal text-white/60">{isMulti ? `${playerCount}👥` : m.best}</span>
           </motion.button>
         ))}
       </div>
