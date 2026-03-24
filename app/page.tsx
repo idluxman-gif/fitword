@@ -2164,6 +2164,10 @@ function HomeScreen() {
 
 // ─── Main Page ───
 // ─── Back Button Hook ───
+// Global back-button leave dialog state
+let _showBackLeave = false
+let _setShowBackLeave: ((v: boolean) => void) | null = null
+
 function useBackButton() {
   const status = useGameStore((s) => s.status)
   const gridStatus = useGridStore((s) => s.status)
@@ -2173,12 +2177,14 @@ function useBackButton() {
   const gridGoHome = useGridStore((s) => s.goHome)
   const leaveGame = useMultiplayerStore((s) => s.leaveGame)
 
+  const [showBackLeave, setShowBackLeave] = useState(false)
+  _setShowBackLeave = setShowBackLeave
+
   const isPlaying = status !== 'idle' || gridStatus !== 'idle' || mpStatus !== 'idle' || designerStatus !== 'idle'
   const wasPlayingRef = useRef(false)
 
   useEffect(() => {
     if (isPlaying && !wasPlayingRef.current) {
-      // Game just started — push a history entry so back button can pop it
       window.history.pushState({ inGame: true }, '')
       wasPlayingRef.current = true
     } else if (!isPlaying && wasPlayingRef.current) {
@@ -2190,20 +2196,29 @@ function useBackButton() {
     const handlePopState = (e: PopStateEvent) => {
       if (wasPlayingRef.current) {
         e.preventDefault()
-        // Go home based on which mode is active
-        if (useMultiplayerStore.getState().status !== 'idle') {
-          leaveGame()
-        } else if (useGridStore.getState().status !== 'idle') {
-          gridGoHome()
-        } else {
-          goHome()
-        }
-        wasPlayingRef.current = false
+        // Re-push history so back button can be pressed again if user cancels
+        window.history.pushState({ inGame: true }, '')
+        // Show the leave dialog instead of exiting directly
+        setShowBackLeave(true)
       }
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
-  }, [goHome, gridGoHome, leaveGame])
+  }, [])
+
+  const handleConfirmLeave = () => {
+    setShowBackLeave(false)
+    wasPlayingRef.current = false
+    if (useMultiplayerStore.getState().status !== 'idle') {
+      leaveGame()
+    } else if (useGridStore.getState().status !== 'idle') {
+      gridGoHome()
+    } else {
+      goHome()
+    }
+  }
+
+  return { showBackLeave, setShowBackLeave, handleConfirmLeave }
 }
 
 export default function GamePage() {
@@ -2214,7 +2229,7 @@ export default function GamePage() {
 
   useInit()
   useTimer()
-  useBackButton()
+  const { showBackLeave, setShowBackLeave, handleConfirmLeave } = useBackButton()
 
   const gameMode = useGameStore((s) => s.mode)
   const isGridMode = gridStatus !== 'idle'
@@ -2226,6 +2241,16 @@ export default function GamePage() {
   return (
     <main className="h-dvh flex flex-col max-w-md mx-auto overflow-hidden">
       {showHome && <HomeScreen />}
+
+      {/* Back button leave confirmation dialog */}
+      <AnimatePresence>
+        {showBackLeave && (
+          <LeaveConfirm
+            onConfirm={handleConfirmLeave}
+            onCancel={() => setShowBackLeave(false)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Designer screens */}
       {designerStatus === 'hub' && <DesignerHub />}
