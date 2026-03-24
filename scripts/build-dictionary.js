@@ -40,9 +40,38 @@ const MAX_LEN = 8
 // Manual supplement — common words missing from source data
 const MANUAL_WORDS = [
   'לק',    // nail polish
-  'ציוד',  // equipment (in case sampling misses it)
+  'ציוד',  // equipment
   'כה',    // thus
   'בועה',  // bubble
+  'גיבור', // hero
+  'גיבורה', // heroine
+  'גיבורים', // heroes — too long (9), will be filtered
+  'אמיץ',  // brave
+  'חכם',   // smart
+  'מלך',   // king
+  'מלכה',  // queen
+  'נסיך',  // prince
+  'נסיכה', // princess
+  'חייל',  // soldier
+  'לוחם',  // fighter
+  'כוח',   // power
+  'עוגה',  // cake
+  'גלידה', // ice cream
+  'שוקולד', // chocolate — too long, filtered
+  'ממתק',  // candy
+  'בובה',  // doll
+  'צעצוע', // toy
+  'חבר',   // friend
+  'חברה',  // friend (f) / company
+  'משפחה', // family
+  'אבא',   // dad
+  'אמא',   // mom
+  'סבא',   // grandpa
+  'סבתא',  // grandma
+  'דוד',   // uncle
+  'דודה',  // aunt
+  'תינוק', // baby
+  'גוש',   // lump
 ]
 
 async function fetchFile(file) {
@@ -98,11 +127,15 @@ async function main() {
 
   // Budget: ~250KB gzipped. All 2-4 char words (~25K), sample 5+ to ~20K more.
   const caps = { 2: Infinity, 3: Infinity, 4: Infinity, 5: 8000, 6: 5000, 7: 3000, 8: 2000 }
+  const manualSet = new Set(MANUAL_WORDS.filter(isValid))
   const sorted = []
   for (let len = 2; len <= 8; len++) {
     const bucket = all.filter((w) => w.length === len)
     const cap = caps[len] || bucket.length
-    sorted.push(...sample(bucket, cap))
+    const sampled = new Set(sample(bucket, cap))
+    // Always include manual words regardless of sampling
+    for (const w of manualSet) { if (w.length === len) sampled.add(w) }
+    sorted.push(...sampled)
   }
   sorted.sort()
 

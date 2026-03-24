@@ -118,6 +118,7 @@ interface GridState {
   initBest: () => void
   startGrid: (difficulty?: GridDifficulty) => void
   startGridWithLetters: (difficulty: GridDifficulty, letters: string[], stage: number) => void
+  startFromCustomLevel: (shape: boolean[][], rows: number, cols: number, timer: number, stage: number) => void
   nextGridStage: () => void
   nextGridStageWithLetters: (letters: string[]) => void
   selectCell: (row: number, col: number) => void
@@ -267,6 +268,22 @@ export const useGridStore = create<GridState>((set, get) => ({
         feedback: null, stage,
       })
     }
+  },
+
+  startFromCustomLevel: (shape: boolean[][], rows: number, cols: number, timer: number, stage: number = 1) => {
+    const letters = pickWeightedLetters(10)
+    // Convert shape boolean[][] to GridCell[][]
+    const grid: GridCell[][] = shape.map((row) =>
+      row.map((active) => ({ char: null, filled: !active, active }))
+    )
+    set({
+      difficulty: 'shapes' as GridDifficulty,
+      gridRows: rows, gridCols: cols, grid,
+      placedWords: [], selectedCell: null, direction: 'right' as Direction,
+      letters, currentWord: '', usedTileIndices: [],
+      score: 0, timeLeft: timer, status: 'playing' as GridStatus,
+      feedback: null, stage,
+    })
   },
 
   nextGridStageWithLetters: (letters: string[]) => {

@@ -5,20 +5,23 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore, type GameMode } from '@/lib/store'
 import { useGridStore, type Direction } from '@/lib/grid-store'
 import { useMultiplayerStore, type MultiplayerStatus } from '@/lib/multiplayer-store'
+import { useDesignerStore, type CustomLevel, type LevelPack } from '@/lib/designer-store'
 import { playTileTap, playValidWord, playInvalidWord, playPerfectFit, playStageClear } from '@/lib/sound'
 
 // ─── Init Hook ───
 function useInit() {
   const initBests = useGameStore((s) => s.initBests)
   const initGridBest = useGridStore((s) => s.initBest)
+  const initPacks = useDesignerStore((s) => s.initPacks)
   const didInit = useRef(false)
   useEffect(() => {
     if (!didInit.current) {
       didInit.current = true
       initBests()
       initGridBest()
+      initPacks()
     }
-  }, [initBests, initGridBest])
+  }, [initBests, initGridBest, initPacks])
 }
 
 // ─── Timer Hook ───
@@ -1589,6 +1592,307 @@ function MultiplayerGame() {
   )
 }
 
+// ─── Designer Components ───
+
+function DesignerHub() {
+  const packs = useDesignerStore((s) => s.packs)
+  const createNewPack = useDesignerStore((s) => s.createNewPack)
+  const editPack = useDesignerStore((s) => s.editPack)
+  const deletePack = useDesignerStore((s) => s.deletePack)
+  const startPlayPack = useDesignerStore((s) => s.startPlayPack)
+  const sharePack = useDesignerStore((s) => s.sharePack)
+  const shareCode = useDesignerStore((s) => s.shareCode)
+  const goHome = useDesignerStore((s) => s.goHome)
+  const importCode = useDesignerStore((s) => s.importCode)
+  const setImportCode = useDesignerStore((s) => s.setImportCode)
+  const importPack = useDesignerStore((s) => s.importPack)
+  const importError = useDesignerStore((s) => s.importError)
+  const [showImport, setShowImport] = useState(false)
+
+  return (
+    <div className="fixed inset-0 bg-bg flex flex-col items-center z-50 px-4 py-8 overflow-y-auto">
+      <button onClick={goHome} className="absolute top-4 left-4 text-gray-400 text-2xl">✕</button>
+
+      <h1 className="text-2xl font-bold text-accent mb-6">🎨 עיצוב שלבים</h1>
+
+      <div className="flex gap-3 mb-6 w-full max-w-[320px]">
+        <motion.button whileTap={{ scale: 0.95 }} onClick={createNewPack}
+          className="flex-1 py-3 rounded-xl bg-accent text-white font-bold text-sm">
+          + חבילה חדשה
+        </motion.button>
+        <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowImport(!showImport)}
+          className="flex-1 py-3 rounded-xl bg-tile border border-gray-700 text-white font-bold text-sm">
+          📥 הכנס קוד
+        </motion.button>
+      </div>
+
+      {showImport && (
+        <div className="w-full max-w-[320px] mb-4 p-4 rounded-xl bg-builder border border-gray-800">
+          <input type="text" value={importCode} onChange={(e) => setImportCode(e.target.value)}
+            placeholder="הכנס קוד חבילה" maxLength={8}
+            className="w-full text-center text-lg font-mono bg-tile border border-gray-700 rounded-lg py-2 text-white placeholder-gray-600 focus:border-accent outline-none mb-3" />
+          {importError && <p className="text-error text-sm text-center mb-2">{importError}</p>}
+          <button onClick={importPack}
+            className={`w-full py-2 rounded-lg font-bold ${importCode.length > 0 ? 'bg-accent text-white' : 'bg-gray-700 text-gray-500'}`}>
+            ייבא
+          </button>
+        </div>
+      )}
+
+      {shareCode && (
+        <div className="w-full max-w-[320px] mb-4 p-4 rounded-xl bg-success/10 border border-success/30 text-center">
+          <p className="text-success text-sm mb-1">!קוד שיתוף</p>
+          <p className="text-2xl font-bold font-mono text-white tracking-widest">{shareCode}</p>
+        </div>
+      )}
+
+      {packs.length === 0 ? (
+        <p className="text-gray-500 text-sm mt-8">אין חבילות עדיין — צור חבילה חדשה</p>
+      ) : (
+        <div className="w-full max-w-[320px] space-y-3">
+          {packs.map((pack) => (
+            <div key={pack.id} className="p-4 rounded-xl bg-tile border border-gray-700/50">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-bold text-white">{pack.name || 'ללא שם'}</h3>
+                <span className="text-xs text-gray-500">{pack.levels.length} שלבים</span>
+              </div>
+              {pack.author && <p className="text-xs text-gray-400 mb-3">מאת: {pack.author}</p>}
+              <div className="flex gap-2">
+                <button onClick={() => startPlayPack(pack.id)}
+                  disabled={pack.levels.length === 0}
+                  className="flex-1 py-2 rounded-lg bg-success/20 text-success font-bold text-sm disabled:opacity-30">
+                  ▶ שחק
+                </button>
+                <button onClick={() => editPack(pack.id)}
+                  className="py-2 px-3 rounded-lg bg-accent/20 text-accent text-sm">✏️</button>
+                <button onClick={() => sharePack(pack.id)}
+                  className="py-2 px-3 rounded-lg bg-blue-500/20 text-blue-400 text-sm">📤</button>
+                <button onClick={() => { if (confirm('למחוק חבילה?')) deletePack(pack.id) }}
+                  className="py-2 px-3 rounded-lg bg-error/20 text-error text-sm">🗑</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DesignerEditor() {
+  const editingPack = useDesignerStore((s) => s.editingPack)
+  const editingLevelIdx = useDesignerStore((s) => s.editingLevelIdx)
+  const editorShape = useDesignerStore((s) => s.editorShape)
+  const editorGridSize = useDesignerStore((s) => s.editorGridSize)
+  const editorTimer = useDesignerStore((s) => s.editorTimer)
+  const updatePackName = useDesignerStore((s) => s.updatePackName)
+  const updatePackAuthor = useDesignerStore((s) => s.updatePackAuthor)
+  const addLevel = useDesignerStore((s) => s.addLevel)
+  const removeLevel = useDesignerStore((s) => s.removeLevel)
+  const selectLevel = useDesignerStore((s) => s.selectLevel)
+  const setEditorGridSize = useDesignerStore((s) => s.setEditorGridSize)
+  const toggleCell = useDesignerStore((s) => s.toggleCell)
+  const setEditorTimer = useDesignerStore((s) => s.setEditorTimer)
+  const saveLevelTopack = useDesignerStore((s) => s.saveLevelTopack)
+  const savePack = useDesignerStore((s) => s.savePack)
+  const openHub = useDesignerStore((s) => s.openHub)
+
+  if (!editingPack) return null
+
+  const activeCells = editorShape.flat().filter(Boolean).length
+  const gridSizes = [
+    { r: 3, c: 3 }, { r: 3, c: 4 }, { r: 4, c: 4 }, { r: 4, c: 5 },
+    { r: 5, c: 5 }, { r: 5, c: 6 }, { r: 6, c: 6 }, { r: 6, c: 7 },
+    { r: 7, c: 7 }, { r: 7, c: 8 }, { r: 8, c: 8 }, { r: 9, c: 9 },
+  ]
+
+  // Cell size for editor preview
+  const maxCellSize = Math.min(Math.floor(280 / editorGridSize.cols), Math.floor(200 / editorGridSize.rows), 40)
+
+  return (
+    <div className="fixed inset-0 bg-bg flex flex-col z-50 overflow-y-auto">
+      <div className="px-4 py-3 flex items-center justify-between border-b border-gray-800">
+        <button onClick={() => { savePack(); openHub() }} className="text-accent font-bold text-sm">← שמור וחזור</button>
+        <h2 className="font-bold text-white">עורך חבילה</h2>
+        <div className="w-16" />
+      </div>
+
+      <div className="px-4 py-4 space-y-4 max-w-md mx-auto w-full">
+        {/* Pack name & author */}
+        <div className="space-y-2">
+          <input type="text" value={editingPack.name} onChange={(e) => updatePackName(e.target.value)}
+            placeholder="שם החבילה" maxLength={30}
+            className="w-full bg-tile border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:border-accent outline-none text-sm" />
+          <input type="text" value={editingPack.author} onChange={(e) => updatePackAuthor(e.target.value)}
+            placeholder="שם היוצר" maxLength={20}
+            className="w-full bg-tile border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:border-accent outline-none text-sm" />
+        </div>
+
+        {/* Level list */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold text-gray-300">שלבים ({editingPack.levels.length})</h3>
+            <button onClick={addLevel} className="text-xs bg-accent/20 text-accent px-3 py-1 rounded-lg font-bold">+ הוסף שלב</button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {editingPack.levels.map((_, i) => (
+              <div key={i} className="flex items-center gap-1">
+                <button onClick={() => selectLevel(i)}
+                  className={`w-10 h-10 rounded-lg font-bold text-sm ${editingLevelIdx === i ? 'bg-accent text-white' : 'bg-tile text-gray-400 border border-gray-700'}`}>
+                  {i + 1}
+                </button>
+                <button onClick={() => removeLevel(i)} className="text-error text-xs">✕</button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Level editor */}
+        {editingLevelIdx >= 0 && (
+          <div className="p-4 rounded-xl bg-builder border border-gray-800 space-y-4">
+            <h4 className="font-bold text-white text-sm">שלב {editingLevelIdx + 1}</h4>
+
+            {/* Grid size */}
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">גודל רשת</label>
+              <select
+                value={`${editorGridSize.rows}x${editorGridSize.cols}`}
+                onChange={(e) => {
+                  const [r, c] = e.target.value.split('x').map(Number)
+                  setEditorGridSize(r, c)
+                }}
+                className="bg-tile border border-gray-700 text-white rounded-lg px-3 py-2 text-sm w-full outline-none focus:border-accent"
+              >
+                {gridSizes.map(({ r, c }) => (
+                  <option key={`${r}x${c}`} value={`${r}x${c}`}>{r}×{c} ({r * c} משבצות)</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Grid canvas — tap to toggle cells */}
+            <div>
+              <label className="text-xs text-gray-400 mb-2 block">הקש על משבצות לציור הצורה ({activeCells} פעילות)</label>
+              <div className="flex flex-col items-center gap-1">
+                {editorShape.map((row, r) => (
+                  <div key={r} className="flex gap-1">
+                    {row.map((active, c) => (
+                      <button key={`${r}-${c}`} onClick={() => { toggleCell(r, c); saveLevelTopack() }}
+                        className={`rounded transition-colors ${active ? 'bg-white' : 'bg-gray-800 border border-gray-700'}`}
+                        style={{ width: maxCellSize, height: maxCellSize }} />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Timer */}
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">טיימר: {editorTimer} שניות</label>
+              <input type="range" min={30} max={300} step={10} value={editorTimer}
+                onChange={(e) => { setEditorTimer(Number(e.target.value)); saveLevelTopack() }}
+                className="w-full accent-accent" />
+              <div className="flex justify-between text-xs text-gray-600">
+                <span>30</span><span>120</span><span>300</span>
+              </div>
+            </div>
+
+            <button onClick={saveLevelTopack} className="w-full py-2 rounded-lg bg-success/20 text-success font-bold text-sm">
+              ✓ שמור שלב
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CustomPackGame() {
+  const playingPack = useDesignerStore((s) => s.playingPack)
+  const playingLevelIdx = useDesignerStore((s) => s.playingLevelIdx)
+  const playTotalScore = useDesignerStore((s) => s.playTotalScore)
+  const onLevelComplete = useDesignerStore((s) => s.onLevelComplete)
+  const onLevelFail = useDesignerStore((s) => s.onLevelFail)
+  const goHome = useDesignerStore((s) => s.goHome)
+  const openHub = useDesignerStore((s) => s.openHub)
+  const startFromCustomLevel = useGridStore((s) => s.startFromCustomLevel)
+  const gridStatus = useGridStore((s) => s.status)
+  const gridScore = useGridStore((s) => s.score)
+  const gridGoHome = useGridStore((s) => s.goHome)
+  const startedRef = useRef(false)
+  const prevGridStatus = useRef(gridStatus)
+
+  if (!playingPack) return null
+
+  const allDone = playingLevelIdx >= playingPack.levels.length
+  const currentLevel = allDone ? null : playingPack.levels[playingLevelIdx]
+
+  // Start the current level
+  useEffect(() => {
+    if (currentLevel && !allDone && gridStatus === 'idle') {
+      startFromCustomLevel(currentLevel.shape, currentLevel.rows, currentLevel.cols, currentLevel.timer, playingLevelIdx + 1)
+      startedRef.current = true
+    }
+  }, [currentLevel, allDone, gridStatus, playingLevelIdx, startFromCustomLevel])
+
+  // Detect level completion
+  useEffect(() => {
+    if (startedRef.current && prevGridStatus.current === 'playing') {
+      if (gridStatus === 'stage_clear' || gridStatus === 'won') {
+        onLevelComplete(gridScore)
+        gridGoHome() // reset grid store for next level
+        startedRef.current = false
+      } else if (gridStatus === 'lost') {
+        onLevelFail()
+      }
+    }
+    prevGridStatus.current = gridStatus
+  }, [gridStatus, gridScore, onLevelComplete, onLevelFail, gridGoHome])
+
+  // All levels completed
+  if (allDone) {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6">
+        <div className="text-6xl mb-4">🏆</div>
+        <h1 className="text-3xl font-bold text-accent mb-2">!סיימת את החבילה</h1>
+        <p className="text-xl text-white mb-1">{playTotalScore} :ניקוד כולל</p>
+        <p className="text-gray-400 mb-6">{playingPack.levels.length} שלבים הושלמו</p>
+        <div className="flex flex-col gap-3 w-full max-w-[250px]">
+          <button onClick={openHub} className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg">
+            חזרה לעורך
+          </button>
+          <button onClick={() => { gridGoHome(); goHome() }} className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base">
+            תפריט ראשי
+          </button>
+        </div>
+      </motion.div>
+    )
+  }
+
+  // Level failed
+  if (gridStatus === 'lost') {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6">
+        <div className="text-5xl mb-4">😔</div>
+        <h1 className="text-2xl font-bold text-gray-300 mb-2">שלב {playingLevelIdx + 1} נכשל</h1>
+        <p className="text-lg text-gray-400 mb-1">{playTotalScore} :ניקוד כולל</p>
+        <p className="text-gray-500 mb-6">הגעת לשלב {playingLevelIdx + 1} מתוך {playingPack.levels.length}</p>
+        <div className="flex flex-col gap-3 w-full max-w-[250px]">
+          <button onClick={openHub} className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg">
+            חזרה לעורך
+          </button>
+          <button onClick={() => { gridGoHome(); goHome() }} className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base">
+            תפריט ראשי
+          </button>
+        </div>
+      </motion.div>
+    )
+  }
+
+  // During play, render the grid game
+  return null // GridGame renders via grid store status
+}
+
 // ─── Home Screen ───
 function HomeScreen() {
   const [isMulti, setIsMulti] = useState(false)
@@ -1616,9 +1920,16 @@ function HomeScreen() {
     { key: 'score_rush', label: MODE_LABELS.score_rush, best: bestStageScoreRush > 0 ? `שלב ${bestStageScoreRush}` : '—', delay: 0.5 },
     { key: 'grid', label: MODE_LABELS.grid, best: bestStageGrid > 0 ? `שלב ${bestStageGrid}` : '—', delay: 0.6 },
     { key: 'shapes', label: MODE_LABELS.shapes, best: bestStageShapes > 0 ? `שלב ${bestStageShapes}` : '—', delay: 0.7 },
+    { key: 'designer', label: '🎨 עיצוב שלבים', best: '', delay: 0.8 },
   ]
 
+  const openDesigner = useDesignerStore((s) => s.openHub)
+
   const handleModeClick = (key: string) => {
+    if (key === 'designer') {
+      openDesigner()
+      return
+    }
     if (!isMulti) {
       // Single player
       if (key === 'grid') startGrid('normal')
@@ -1716,17 +2027,24 @@ export default function GamePage() {
   const status = useGameStore((s) => s.status)
   const gridStatus = useGridStore((s) => s.status)
   const mpStatus = useMultiplayerStore((s) => s.status)
+  const designerStatus = useDesignerStore((s) => s.status)
 
   useInit()
   useTimer()
 
   const isGridMode = gridStatus !== 'idle'
   const isMultiplayerMode = mpStatus !== 'idle'
-  const showHome = status === 'idle' && gridStatus === 'idle' && mpStatus === 'idle'
+  const isDesignerMode = designerStatus !== 'idle'
+  const showHome = status === 'idle' && gridStatus === 'idle' && mpStatus === 'idle' && !isDesignerMode
 
   return (
     <main className="h-dvh flex flex-col max-w-md mx-auto overflow-hidden">
       {showHome && <HomeScreen />}
+
+      {/* Designer screens */}
+      {designerStatus === 'hub' && <DesignerHub />}
+      {designerStatus === 'editing' && <DesignerEditor />}
+      {designerStatus === 'playing' && <CustomPackGame />}
 
       {isMultiplayerMode ? (
         <MultiplayerGame />
