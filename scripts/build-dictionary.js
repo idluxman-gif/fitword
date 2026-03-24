@@ -72,6 +72,7 @@ const MANUAL_WORDS = [
   'דודה',  // aunt
   'תינוק', // baby
   'גוש',   // lump
+  'מש',    // moved/moving (synonym of נע)
 ]
 
 async function fetchFile(file) {

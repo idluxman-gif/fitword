@@ -234,6 +234,7 @@ function WordBuilder() {
   const filledWords = useGameStore((s) => s.filledWords)
   const score = useGameStore((s) => s.score)
   const status = useGameStore((s) => s.status)
+  const mode = useGameStore((s) => s.mode)
   const muted = useGameStore((s) => s.muted)
 
   if (status !== 'playing') return null
@@ -285,8 +286,8 @@ function WordBuilder() {
         </motion.button>
       </div>
 
-      {/* Undo last word button */}
-      {!currentWord && (
+      {/* Undo + shuffle row — hidden in Score Rush (shuffle is in top bar) */}
+      {!currentWord && mode !== 'score_rush' && (
         <div className="flex gap-2">
           {filledWords.length > 0 && (
             <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} whileTap={{ scale: 0.95 }}
