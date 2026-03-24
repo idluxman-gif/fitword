@@ -1021,23 +1021,25 @@ function MultiplayerLobby() {
         <div className="flex flex-col gap-4 w-full max-w-[280px] items-center">
           <p className="text-gray-400 text-sm">הכנס קוד חדר:</p>
           <input
-            type="text"
-            maxLength={4}
+            type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={6}
             value={joinCode}
-            onChange={(e) => { setJoinCode(e.target.value.toUpperCase()); setJoinError('') }}
-            placeholder="ABCD"
+            onChange={(e) => { setJoinCode(e.target.value.replace(/\D/g, '')); setJoinError('') }}
+            placeholder="000000"
             className="text-center text-4xl font-bold font-mono tracking-[0.4em] bg-tile border-2 border-gray-700 rounded-xl py-3 w-full text-white placeholder-gray-600 focus:border-accent outline-none"
             autoFocus
           />
           {joinError && <p className="text-error text-sm">{joinError}</p>}
           <motion.button
             whileTap={{ scale: 0.95 }}
-            disabled={joinCode.length !== 4}
+            disabled={joinCode.length !== 6}
             onClick={async () => {
               const res = await joinRoom(joinCode)
               if (!res.ok) setJoinError(res.error || 'שגיאה')
             }}
-            className={`px-8 py-3 rounded-2xl text-white text-lg font-bold w-full ${joinCode.length === 4 ? 'bg-accent' : 'bg-gray-700 text-gray-500'}`}
+            className={`px-8 py-3 rounded-2xl text-white text-lg font-bold w-full ${joinCode.length === 6 ? 'bg-accent' : 'bg-gray-700 text-gray-500'}`}
           >
             הצטרף
           </motion.button>

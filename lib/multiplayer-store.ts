@@ -74,9 +74,8 @@ function genId(): string {
 }
 
 function genCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
   let code = ''
-  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)]
+  for (let i = 0; i < 6; i++) code += Math.floor(Math.random() * 10)
   return code
 }
 
@@ -248,7 +247,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   joinRoom: async (code: string) => {
     if (!db) return { ok: false, error: 'No connection' }
     set({ status: 'joining' })
-    const upperCode = code.toUpperCase()
+    const upperCode = code.trim()
 
     const roomRef = ref(db, `rooms/${upperCode}`)
     const snapshot = await fbGet(roomRef)
