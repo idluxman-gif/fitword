@@ -1606,6 +1606,7 @@ function ScoreRushTopBar() {
   const toggleMute = useGameStore((s) => s.toggleMute)
   const goHome = useGameStore((s) => s.goHome)
   const shuffleLetters = useGameStore((s) => s.shuffleLetters)
+  const [showLeave, setShowLeave] = useState(false)
 
   const minutes = Math.floor(timeLeft / 60)
   const seconds = timeLeft % 60
@@ -1625,9 +1626,13 @@ function ScoreRushTopBar() {
           <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center text-gray-400">
             {muted ? '🔇' : '🔊'}
           </button>
-          <button onClick={goHome} className="w-8 h-8 flex items-center justify-center text-gray-500 text-sm">✕</button>
+          <button onClick={() => setShowLeave(true)} className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-error text-sm">✕</button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showLeave && <LeaveConfirm onConfirm={() => { setShowLeave(false); goHome() }} onCancel={() => setShowLeave(false)} />}
+      </AnimatePresence>
       {/* Row 2: words until shuffle + shuffle tokens */}
       <div className="flex items-center justify-between">
         <span className="text-xs text-gray-400">
