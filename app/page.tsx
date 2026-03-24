@@ -1353,6 +1353,160 @@ function useMultiplayerTimer() {
   }, [status, tick])
 }
 
+// Bridge: initializes grid store with multiplayer shared letters, runs grid timer, syncs completion
+function MultiplayerGridBridge() {
+  const mpStatus = useMultiplayerStore((s) => s.status)
+  const mpLetters = useMultiplayerStore((s) => s.letters)
+  const mpGameMode = useMultiplayerStore((s) => s.gameMode)
+  const mpStage = useMultiplayerStore((s) => s.stage)
+  const gridStatus = useGridStore((s) => s.status)
+  const gridScore = useGridStore((s) => s.score)
+  const gridTick = useGridStore((s) => s.tick)
+  const startGridWithLetters = useGridStore((s) => s.startGridWithLetters)
+  const finishRound = useMultiplayerStore((s) => s.finishRound)
+  const broadcastState = useMultiplayerStore((s) => s.broadcastState)
+  const initRef = useRef(false)
+  const stageRef = useRef(0)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Initialize grid when multiplayer starts playing
+  useEffect(() => {
+    if (mpStatus === 'playing' && mpLetters.length > 0 && stageRef.current !== mpStage) {
+      stageRef.current = mpStage
+      const difficulty = mpGameMode === 'shapes' ? 'shapes' : 'normal'
+      startGridWithLetters(difficulty, mpLetters, mpStage)
+      initRef.current = true
+    }
+  }, [mpStatus, mpLetters, mpStage, mpGameMode, startGridWithLetters])
+
+  // Reset grid store when leaving multiplayer
+  useEffect(() => {
+    if (mpStatus === 'idle' && initRef.current) {
+      useGridStore.getState().goHome()
+      initRef.current = false
+      stageRef.current = 0
+    }
+  }, [mpStatus])
+
+  // Run grid timer (since useGridTimer only runs inside GridGame)
+  useEffect(() => {
+    if (gridStatus === 'playing') {
+      timerRef.current = setInterval(gridTick, 1000)
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [gridStatus, gridTick])
+
+  // When grid is won, sync score to multiplayer and finish round
+  useEffect(() => {
+    if (initRef.current && gridStatus === 'won') {
+      useMultiplayerStore.setState({ score: useMultiplayerStore.getState().score + gridScore })
+      broadcastState()
+      finishRound()
+    }
+  }, [gridStatus, gridScore, broadcastState, finishRound])
+
+  // When grid is lost (timer/stuck), also end the round
+  useEffect(() => {
+    if (initRef.current && gridStatus === 'lost') {
+      useMultiplayerStore.setState({ score: useMultiplayerStore.getState().score + gridScore })
+      broadcastState()
+      finishRound()
+    }
+  }, [gridStatus, gridScore, broadcastState, finishRound])
+
+  return null
+}
+
+// Grid-mode feedback using grid store
+function MultiplayerGridFeedback() {
+  const feedback = useGridStore((s) => s.feedback)
+  return (
+    <div className="h-10 flex items-center justify-center px-4">
+      <AnimatePresence mode="wait">
+        {feedback && (
+          <motion.div
+            key={feedback.text}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className={`text-sm font-medium ${
+              feedback.type === 'success' ? 'text-success' :
+              feedback.type === 'error' ? 'text-error' :
+              feedback.type === 'warning' ? 'text-yellow-400' :
+              'text-gray-400'
+            }`}
+          >
+            {feedback.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// Grid-mode word builder using grid store
+function MultiplayerGridWordBuilder() {
+  const currentWord = useGridStore((s) => s.currentWord)
+  const clearWord = useGridStore((s) => s.clearWord)
+  const submitWord = useGridStore((s) => s.submitWord)
+  const status = useGridStore((s) => s.status)
+
+  if (status !== 'playing') return null
+
+  return (
+    <div className="mx-4 p-3 rounded-xl bg-builder border border-gray-800/50">
+      <div className="flex items-center justify-between gap-3">
+        <motion.button whileTap={{ scale: 0.9 }} onClick={clearWord}
+          className="w-12 h-12 rounded-xl bg-error/20 text-error text-xl font-bold flex items-center justify-center">
+          ✕
+        </motion.button>
+        <div className="flex-1 min-h-[48px] flex items-center justify-center rounded-xl bg-gray-800/30 px-3">
+          <span className="text-2xl font-bold tracking-wider">
+            {currentWord || <span className="text-gray-600 text-base">הקש על אותיות</span>}
+          </span>
+        </div>
+        <motion.button whileTap={{ scale: 0.9 }} onClick={submitWord}
+          disabled={currentWord.length === 0}
+          className={`w-12 h-12 rounded-xl text-xl font-bold flex items-center justify-center
+            ${currentWord.length > 0 ? 'bg-success/20 text-success' : 'bg-gray-800/30 text-gray-600'}`}>
+          ✓
+        </motion.button>
+      </div>
+    </div>
+  )
+}
+
+// Grid-mode letter tiles using grid store
+function MultiplayerGridLetterTiles() {
+  const letters = useGridStore((s) => s.letters)
+  const addLetterByIndex = useGridStore((s) => s.addLetterByIndex)
+  const usedTileIndices = useGridStore((s) => s.usedTileIndices)
+  const status = useGridStore((s) => s.status)
+
+  if (status !== 'playing') return null
+
+  return (
+    <div className="px-4 py-2 shrink-0">
+      <div className="flex flex-wrap justify-center gap-2 max-w-[340px] mx-auto">
+        {letters.map((letter, i) => (
+          <motion.button
+            key={`${letter}-${i}`}
+            whileTap={{ scale: 0.92 }}
+            onClick={() => addLetterByIndex(i)}
+            className={`w-[56px] h-[56px] rounded-xl border-2 text-2xl font-bold text-white
+              shadow-lg shadow-black/30 transition-colors duration-100
+              ${usedTileIndices.includes(i)
+                ? 'bg-accent/30 border-accent'
+                : 'bg-tile border-transparent active:border-accent active:bg-accent/20'}`}
+          >
+            {letter}
+          </motion.button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function MultiplayerGame() {
   useMultiplayerTimer()
   const status = useMultiplayerStore((s) => s.status)
@@ -1368,26 +1522,34 @@ function MultiplayerGame() {
       <MultiplayerCountdown />
       {(status === 'playing' || status === 'finished') && (
         <>
+          {isGridMode && <MultiplayerGridBridge />}
           <MultiplayerTopBar />
           <MultiplayerOpponentBars />
           {isGridMode ? (
             <>
-              {/* Grid/Shapes mode uses the multiplayer row UI for now —
-                  grid mode in multiplayer fills a row with shared letters, same as other modes.
-                  Full grid board sync requires per-cell state which is future work. */}
-              <MultiplayerTargetRow />
+              <GridBoard />
+              <MultiplayerGridFeedback />
+              <div className="flex-1 min-h-2" />
+              <div className="shrink-0 pb-safe">
+                <MultiplayerGridWordBuilder />
+                <div className="h-2" />
+                <MultiplayerGridLetterTiles />
+                <div className="h-2" />
+              </div>
             </>
           ) : (
-            <MultiplayerTargetRow />
+            <>
+              <MultiplayerTargetRow />
+              <MultiplayerFeedback />
+              <div className="flex-1 min-h-2" />
+              <div className="shrink-0 pb-safe">
+                <MultiplayerWordBuilder />
+                <div className="h-2" />
+                <MultiplayerLetterTiles />
+                <div className="h-2" />
+              </div>
+            </>
           )}
-          <MultiplayerFeedback />
-          <div className="flex-1 min-h-2" />
-          <div className="shrink-0 pb-safe">
-            <MultiplayerWordBuilder />
-            <div className="h-2" />
-            <MultiplayerLetterTiles />
-            <div className="h-2" />
-          </div>
         </>
       )}
       <AnimatePresence>

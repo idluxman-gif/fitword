@@ -117,7 +117,9 @@ interface GridState {
   // Actions
   initBest: () => void
   startGrid: (difficulty?: GridDifficulty) => void
+  startGridWithLetters: (difficulty: GridDifficulty, letters: string[], stage: number) => void
   nextGridStage: () => void
+  nextGridStageWithLetters: (letters: string[]) => void
   selectCell: (row: number, col: number) => void
   addLetterByIndex: (index: number) => void
   clearWord: () => void
@@ -240,6 +242,55 @@ export const useGridStore = create<GridState>((set, get) => ({
         status: 'playing',
         feedback: null,
         stage: 1,
+      })
+    }
+  },
+
+  startGridWithLetters: (difficulty: GridDifficulty, letters: string[], stage: number = 1) => {
+    if (difficulty === 'shapes') {
+      const { grid, rows, cols } = pickShape(stage)
+      set({
+        difficulty, gridRows: rows, gridCols: cols, grid,
+        placedWords: [], selectedCell: null, direction: 'right' as Direction,
+        letters, currentWord: '', usedTileIndices: [],
+        score: 0, timeLeft: 120, status: 'playing' as GridStatus,
+        feedback: null, stage,
+      })
+    } else {
+      const { rows, cols } = getGridSize(stage)
+      set({
+        difficulty, gridRows: rows, gridCols: cols,
+        grid: createEmptyGrid(rows, cols),
+        placedWords: [], selectedCell: null, direction: 'right' as Direction,
+        letters, currentWord: '', usedTileIndices: [],
+        score: 0, timeLeft: 120, status: 'playing' as GridStatus,
+        feedback: null, stage,
+      })
+    }
+  },
+
+  nextGridStageWithLetters: (letters: string[]) => {
+    const { stage, score, difficulty } = get()
+    const newStage = stage + 1
+    const bestKey = difficulty === 'shapes' ? 'bestStageShapes' : 'bestStageGrid'
+    saveBest(bestKey, stage)
+
+    if (difficulty === 'shapes') {
+      const { grid, rows, cols } = pickShape(newStage)
+      set({
+        gridRows: rows, gridCols: cols, grid, placedWords: [], selectedCell: null, direction: 'right' as Direction,
+        letters, currentWord: '', usedTileIndices: [], score: score + 50, timeLeft: 120,
+        status: 'playing' as GridStatus, feedback: null, stage: newStage,
+        bestStageShapes: Math.max(get().bestStageShapes, stage),
+      })
+    } else {
+      const { rows, cols } = getGridSize(newStage)
+      set({
+        gridRows: rows, gridCols: cols, grid: createEmptyGrid(rows, cols),
+        placedWords: [], selectedCell: null, direction: 'right' as Direction,
+        letters, currentWord: '', usedTileIndices: [], score: score + 50, timeLeft: 120,
+        status: 'playing' as GridStatus, feedback: null, stage: newStage,
+        bestStageGrid: Math.max(get().bestStageGrid, stage),
       })
     }
   },
