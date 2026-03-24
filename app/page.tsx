@@ -1109,7 +1109,7 @@ function MultiplayerOpponentBars() {
 
 function MultiplayerTopBar() {
   const timeLeft = useMultiplayerStore((s) => s.timeLeft)
-  const score = useMultiplayerStore((s) => s.score)
+  const mpScore = useMultiplayerStore((s) => s.score)
   const targetLength = useMultiplayerStore((s) => s.targetLength)
   const filledWords = useMultiplayerStore((s) => s.filledWords)
   const muted = useMultiplayerStore((s) => s.muted)
@@ -1117,6 +1117,12 @@ function MultiplayerTopBar() {
   const showLeaveConfirm = useMultiplayerStore((s) => s.showLeaveConfirm)
   const setShowLeaveConfirm = useMultiplayerStore((s) => s.setShowLeaveConfirm)
   const leaveGame = useMultiplayerStore((s) => s.leaveGame)
+  const gameMode = useMultiplayerStore((s) => s.gameMode)
+  const gridScore = useGridStore((s) => s.score)
+
+  // In grid/shapes mode, show grid store score (real-time); in row modes, show multiplayer store score
+  const isGridMode = gameMode === 'grid' || gameMode === 'shapes'
+  const score = isGridMode ? gridScore : mpScore
 
   const filledLen = filledWords.reduce((s, w) => s + w.length, 0)
   const remaining = targetLength - filledLen
@@ -1411,6 +1417,14 @@ function MultiplayerGridBridge() {
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [gridStatus, gridTick])
+
+  // Sync grid score to multiplayer store in real-time (for opponent bars)
+  useEffect(() => {
+    if (initRef.current && gridStatus === 'playing') {
+      useMultiplayerStore.setState({ score: gridScore })
+      useMultiplayerStore.getState().broadcastState()
+    }
+  }, [gridScore, gridStatus])
 
   // When grid completes (stage_clear or won), sync score to multiplayer and finish round
   useEffect(() => {
