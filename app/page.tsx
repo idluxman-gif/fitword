@@ -1592,6 +1592,140 @@ function MultiplayerGame() {
   )
 }
 
+// ─── Score Rush Mode ───
+
+function ScoreRushTopBar() {
+  const timeLeft = useGameStore((s) => s.timeLeft)
+  const score = useGameStore((s) => s.score)
+  const srWordsUntilShuffle = useGameStore((s) => s.srWordsUntilShuffle)
+  const srShuffleTokens = useGameStore((s) => s.srShuffleTokens)
+  const srTotalWords = useGameStore((s) => s.srTotalWords)
+  const timerFlash = useGameStore((s) => s.timerFlash)
+  const muted = useGameStore((s) => s.muted)
+  const toggleMute = useGameStore((s) => s.toggleMute)
+  const goHome = useGameStore((s) => s.goHome)
+  const shuffleLetters = useGameStore((s) => s.shuffleLetters)
+
+  const minutes = Math.floor(timeLeft / 60)
+  const seconds = timeLeft % 60
+  const isLow = timeLeft <= 10
+
+  return (
+    <div className="px-3 py-2 space-y-1">
+      {/* Row 1: timer + score */}
+      <div className="flex items-center justify-between">
+        <span className={`text-2xl font-bold tabular-nums transition-colors duration-300 ${
+          timerFlash ? 'text-success' : isLow ? 'text-error animate-pulse' : 'text-white'
+        }`}>
+          {minutes}:{seconds.toString().padStart(2, '0')}
+        </span>
+        <span className="text-2xl font-bold text-accent">{score} נק׳</span>
+        <div className="flex items-center gap-1">
+          <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center text-gray-400">
+            {muted ? '🔇' : '🔊'}
+          </button>
+          <button onClick={goHome} className="w-8 h-8 flex items-center justify-center text-gray-500 text-sm">✕</button>
+        </div>
+      </div>
+      {/* Row 2: words until shuffle + shuffle tokens */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-gray-400">
+          מילים: {srTotalWords} | לערבוב: {srWordsUntilShuffle}
+        </span>
+        <div className="flex items-center gap-2">
+          {srShuffleTokens > 0 && (
+            <button onClick={shuffleLetters}
+              className="flex items-center gap-1 text-xs bg-accent/20 text-accent px-2 py-1 rounded-lg font-bold">
+              🔀 ×{srShuffleTokens}
+            </button>
+          )}
+          <button onClick={shuffleLetters}
+            className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded-lg">
+            🔀 קנה (50-)
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ScoreRushScorePopup() {
+  const srLastWordScore = useGameStore((s) => s.srLastWordScore)
+
+  return (
+    <AnimatePresence>
+      {srLastWordScore !== null && (
+        <motion.div
+          key={srLastWordScore + '-' + Date.now()}
+          initial={{ opacity: 0, scale: 0.5, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.8, y: -30 }}
+          transition={{ duration: 0.4 }}
+          className="text-6xl font-black text-accent text-center pointer-events-none"
+        >
+          +{srLastWordScore}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+function ScoreRushResult() {
+  const status = useGameStore((s) => s.status)
+  const score = useGameStore((s) => s.score)
+  const srTotalWords = useGameStore((s) => s.srTotalWords)
+  const bestScoreRush = useGameStore((s) => s.bestScoreRush)
+  const startGame = useGameStore((s) => s.startGame)
+  const goHome = useGameStore((s) => s.goHome)
+
+  if (status !== 'lost') return null
+
+  const isNewBest = score >= bestScoreRush && score > 0
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6">
+      <div className="text-5xl mb-4">{isNewBest ? '🏆' : '⏱️'}</div>
+      <h1 className="text-2xl font-bold text-gray-300 mb-1">!נגמר הזמן</h1>
+      {isNewBest && <p className="text-success font-bold mb-2">!שיא חדש</p>}
+      <p className="text-3xl font-bold text-accent mb-1">{score} נק׳</p>
+      <p className="text-gray-400 mb-1">{srTotalWords} מילים</p>
+      <p className="text-gray-500 text-sm mb-6">שיא: {bestScoreRush} נק׳</p>
+      <div className="flex flex-col gap-3 w-full max-w-[250px]">
+        <motion.button whileTap={{ scale: 0.95 }} onClick={() => startGame('score_rush')}
+          className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg shadow-accent/30">
+          !שחק שוב
+        </motion.button>
+        <motion.button whileTap={{ scale: 0.95 }} onClick={goHome}
+          className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium">
+          תפריט ראשי
+        </motion.button>
+      </div>
+    </motion.div>
+  )
+}
+
+function ScoreRushGame() {
+  return (
+    <>
+      <ScoreRushTopBar />
+      <FeedbackBar />
+      <div className="flex-1 flex items-center justify-center">
+        <ScoreRushScorePopup />
+      </div>
+      <div className="shrink-0 pb-safe">
+        <WordBuilder />
+        <div className="h-2" />
+        <LetterTiles />
+        <div className="h-2" />
+      </div>
+      <AnimatePresence>
+        <ScoreRushResult />
+      </AnimatePresence>
+    </>
+  )
+}
+
 // ─── Designer Components ───
 
 function DesignerHub() {
@@ -1900,7 +2034,7 @@ function HomeScreen() {
   const startGame = useGameStore((s) => s.startGame)
   const bestScoreQuick = useGameStore((s) => s.bestScoreQuick)
   const bestStageEndless = useGameStore((s) => s.bestStageEndless)
-  const bestStageScoreRush = useGameStore((s) => s.bestStageScoreRush)
+  const bestScoreRush = useGameStore((s) => s.bestScoreRush)
   const bestStageGrid = useGridStore((s) => s.bestStageGrid)
   const bestStageShapes = useGridStore((s) => s.bestStageShapes)
   const startGrid = useGridStore((s) => s.startGrid)
@@ -1917,7 +2051,7 @@ function HomeScreen() {
   const modes: { key: string; label: string; best: string; delay: number }[] = [
     { key: 'quick', label: MODE_LABELS.quick, best: bestScoreQuick > 0 ? `${bestScoreQuick} נק׳` : '—', delay: 0.3 },
     { key: 'endless', label: MODE_LABELS.endless, best: bestStageEndless > 0 ? `שלב ${bestStageEndless}` : '—', delay: 0.4 },
-    { key: 'score_rush', label: MODE_LABELS.score_rush, best: bestStageScoreRush > 0 ? `שלב ${bestStageScoreRush}` : '—', delay: 0.5 },
+    { key: 'score_rush', label: MODE_LABELS.score_rush, best: bestScoreRush > 0 ? `${bestScoreRush} נק׳` : '—', delay: 0.5 },
     { key: 'grid', label: MODE_LABELS.grid, best: bestStageGrid > 0 ? `שלב ${bestStageGrid}` : '—', delay: 0.6 },
     { key: 'shapes', label: MODE_LABELS.shapes, best: bestStageShapes > 0 ? `שלב ${bestStageShapes}` : '—', delay: 0.7 },
     { key: 'designer', label: '🎨 עיצוב שלבים', best: '', delay: 0.8 },
@@ -2032,9 +2166,11 @@ export default function GamePage() {
   useInit()
   useTimer()
 
+  const gameMode = useGameStore((s) => s.mode)
   const isGridMode = gridStatus !== 'idle'
   const isMultiplayerMode = mpStatus !== 'idle'
   const isDesignerMode = designerStatus !== 'idle'
+  const isScoreRush = status !== 'idle' && gameMode === 'score_rush'
   const showHome = status === 'idle' && gridStatus === 'idle' && mpStatus === 'idle' && !isDesignerMode
 
   return (
@@ -2050,6 +2186,8 @@ export default function GamePage() {
         <MultiplayerGame />
       ) : isGridMode ? (
         <GridGame />
+      ) : isScoreRush ? (
+        <ScoreRushGame />
       ) : (
         <>
           <TopBar />

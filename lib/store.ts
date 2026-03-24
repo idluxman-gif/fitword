@@ -50,13 +50,19 @@ interface GameState {
   scoreTarget: number // Score Rush only
   timerFlash: boolean // +5s visual feedback
 
+  // Score Rush new
+  srWordsUntilShuffle: number  // counts down from 10
+  srShuffleTokens: number      // manual shuffles earned
+  srLastWordScore: number | null // big score popup
+  srTotalWords: number          // total valid words this run
+
   // Mute
   muted: boolean
 
   // Personal bests
   bestScoreQuick: number
   bestStageEndless: number
-  bestStageScoreRush: number
+  bestScoreRush: number  // renamed: best SCORE not stage
 
   // Endless: letter swap
   swapsAvailable: number
@@ -95,10 +101,14 @@ export const useGameStore = create<GameState>((set, get) => ({
   stage: 1,
   scoreTarget: 0,
   timerFlash: false,
+  srWordsUntilShuffle: 10,
+  srShuffleTokens: 0,
+  srLastWordScore: null,
+  srTotalWords: 0,
   muted: false,
   bestScoreQuick: 0,
   bestStageEndless: 0,
-  bestStageScoreRush: 0,
+  bestScoreRush: 0,
   swapsAvailable: 0,
 
   filledLength: () => get().filledWords.reduce((sum, w) => sum + w.length, 0),
@@ -108,7 +118,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({
       bestScoreQuick: loadBest('bestScoreQuick'),
       bestStageEndless: loadBest('bestStageEndless'),
-      bestStageScoreRush: loadBest('bestStageScoreRush'),
+      bestScoreRush: loadBest('bestScoreRush'),
       muted: typeof window !== 'undefined' && localStorage.getItem('muted') === 'true',
     })
   },
@@ -154,17 +164,21 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({
         mode,
         letters,
-        targetLength: 15,
+        targetLength: 999, // no row limit in score rush
         filledWords: [],
         currentWord: '',
         usedTileIndices: [],
         score: 0,
-        timeLeft: getStageTimer(1), // 90
+        timeLeft: 90,
         status: 'playing',
         feedback: null,
         stage: 1,
-        scoreTarget: getScoreTarget(1), // 80
+        scoreTarget: 0,
         swapsAvailable: 0,
+        srWordsUntilShuffle: 10,
+        srShuffleTokens: 0,
+        srLastWordScore: null,
+        srTotalWords: 0,
       })
     }
   },
@@ -234,6 +248,65 @@ export const useGameStore = create<GameState>((set, get) => ({
     const { status, currentWord, letters, filledWords, targetLength, score, mode, stage, scoreTarget } = get()
     if (status !== 'playing' || currentWord.length === 0) return
 
+    // Score Rush: completely different flow — no rows
+    if (mode === 'score_rush') {
+      // Duplicate check
+      if (filledWords.includes(currentWord)) {
+        set({ feedback: { text: '.מילה כבר שומשה ✗', type: 'error' }, currentWord: '', usedTileIndices: [] })
+        return
+      }
+      if (!isValidWord(currentWord)) {
+        set({
+          feedback: { text: '.לא במילון ✗', type: 'error' },
+          currentWord: '', usedTileIndices: [],
+          score: score + invalidWordPenalty(),
+        })
+        return
+      }
+
+      // Valid word — score + time bonus
+      const wordScore = scoreWord(currentWord)
+      const newScore = score + wordScore
+      const len = currentWord.length
+      const timeBonus = len <= 2 ? 1 : len === 3 ? 2 : len === 4 ? 5 : len === 5 ? 10 : 15
+      const newWords = [...filledWords, currentWord]
+      const newTotalWords = get().srTotalWords + 1
+      let newWordsUntilShuffle = get().srWordsUntilShuffle - 1
+      let newShuffleTokens = get().srShuffleTokens
+      let newLetters = letters
+      let shuffleMsg = ''
+
+      // Every 10 words: auto-shuffle + earn a manual shuffle token
+      if (newWordsUntilShuffle <= 0) {
+        newWordsUntilShuffle = 10
+        newShuffleTokens += 1
+        newLetters = pickWeightedLetters(10)
+        shuffleMsg = ' 🔄 אותיות חדשות!'
+      }
+
+      saveBest('bestScoreRush', newScore)
+
+      set({
+        filledWords: newWords,
+        currentWord: '',
+        usedTileIndices: [],
+        score: newScore,
+        timeLeft: get().timeLeft + timeBonus,
+        timerFlash: true,
+        letters: newLetters,
+        srWordsUntilShuffle: newWordsUntilShuffle,
+        srShuffleTokens: newShuffleTokens,
+        srLastWordScore: wordScore,
+        srTotalWords: newTotalWords,
+        bestScoreRush: Math.max(get().bestScoreRush, newScore),
+        feedback: { text: `+${timeBonus}s${shuffleMsg}`, type: 'success' },
+      })
+      // Clear timer flash and score popup
+      setTimeout(() => set({ timerFlash: false, srLastWordScore: null }), 1200)
+      return
+    }
+
+    // ─── Row-based modes (Quick / Endless) ───
     const filledLen = filledWords.reduce((sum, w) => sum + w.length, 0)
     const remaining = targetLength - filledLen
 
@@ -242,107 +315,52 @@ export const useGameStore = create<GameState>((set, get) => ({
       return
     }
 
-    // Check duplicate word
     if (filledWords.includes(currentWord)) {
-      set({
-        feedback: { text: '.מילה כבר שומשה ✗', type: 'error' },
-        currentWord: '',
-        usedTileIndices: [],
-      })
+      set({ feedback: { text: '.מילה כבר שומשה ✗', type: 'error' }, currentWord: '', usedTileIndices: [] })
       return
     }
 
     if (!isValidWord(currentWord)) {
       set({
         feedback: { text: '.לא במילון ✗', type: 'error' },
-        currentWord: '',
-        usedTileIndices: [],
+        currentWord: '', usedTileIndices: [],
         score: score + invalidWordPenalty(),
       })
       return
     }
 
-    // Valid word!
     const wordScore = scoreWord(currentWord)
     const newFilledWords = [...filledWords, currentWord]
     const newFilledLen = filledLen + currentWord.length
     const newRemaining = targetLength - newFilledLen
     let newScore = score + wordScore
 
-    // Score Rush: +5s on valid word
-    let timeBonus = 0
-    if (mode === 'score_rush') {
-      timeBonus = 5
-    }
-
     if (newRemaining === 0) {
-      // Perfect Fit!
       newScore += perfectFitBonus()
-
       if (mode === 'quick') {
         saveBest('bestScoreQuick', newScore)
         set({
-          filledWords: newFilledWords,
-          currentWord: '',
-          usedTileIndices: [],
-          score: newScore,
-          timeLeft: get().timeLeft + timeBonus,
-          status: 'won',
+          filledWords: newFilledWords, currentWord: '', usedTileIndices: [],
+          score: newScore, status: 'won',
           feedback: { text: `!מילוי מושלם 🎉 ${wordScore}+ נק׳`, type: 'success' },
           bestScoreQuick: Math.max(get().bestScoreQuick, newScore),
         })
       } else {
-        // Endless / Score Rush: stage clear
-        saveBest(
-          mode === 'endless' ? 'bestStageEndless' : 'bestStageScoreRush',
-          stage
-        )
+        // Endless: stage clear
+        saveBest('bestStageEndless', stage)
         set({
-          filledWords: newFilledWords,
-          currentWord: '',
-          usedTileIndices: [],
-          score: newScore,
-          timeLeft: get().timeLeft + timeBonus,
-          timerFlash: timeBonus > 0,
-          status: 'stage_clear',
+          filledWords: newFilledWords, currentWord: '', usedTileIndices: [],
+          score: newScore, status: 'stage_clear',
           feedback: { text: `!שלב הושלם 🎉 +50 בונוס`, type: 'success' },
-          bestStageEndless: mode === 'endless' ? Math.max(get().bestStageEndless, stage) : get().bestStageEndless,
-          bestStageScoreRush: mode === 'score_rush' ? Math.max(get().bestStageScoreRush, stage) : get().bestStageScoreRush,
+          bestStageEndless: Math.max(get().bestStageEndless, stage),
         })
       }
     } else {
-      // Score Rush: check if score target met (even without perfect fit)
-      if (mode === 'score_rush' && newScore >= scoreTarget) {
-        saveBest('bestStageScoreRush', stage)
-        set({
-          filledWords: newFilledWords,
-          currentWord: '',
-          usedTileIndices: [],
-          score: newScore,
-          timeLeft: get().timeLeft + timeBonus,
-          timerFlash: true,
-          status: 'stage_clear',
-          feedback: { text: `!עברת את היעד ✓ +50 בונוס שלב`, type: 'success' },
-          bestStageScoreRush: Math.max(get().bestStageScoreRush, stage),
-        })
-      } else {
-        set({
-          filledWords: newFilledWords,
-          currentWord: '',
-          usedTileIndices: [],
-          score: newScore,
-          timeLeft: get().timeLeft + timeBonus,
-          timerFlash: timeBonus > 0,
-          feedback: {
-            text: `+${wordScore} נק׳ ✓ נשארו ${newRemaining}`,
-            type: 'success',
-          },
-        })
-        // Clear timer flash after animation
-        if (timeBonus > 0) {
-          setTimeout(() => set({ timerFlash: false }), 600)
-        }
-      }
+      set({
+        filledWords: newFilledWords, currentWord: '', usedTileIndices: [],
+        score: newScore,
+        feedback: { text: `+${wordScore} נק׳ ✓ נשארו ${newRemaining}`, type: 'success' },
+      })
     }
   },
 
@@ -367,6 +385,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (status !== 'playing') return
 
     if (timeLeft <= 1) {
+      // Save best on loss
+      if (get().mode === 'score_rush') saveBest('bestScoreRush', get().score)
       set({ timeLeft: 0, status: 'lost' })
     } else {
       set({ timeLeft: timeLeft - 1 })
@@ -374,8 +394,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   checkStuck: () => {
-    const { status, letters, filledWords, targetLength } = get()
+    const { status, letters, filledWords, targetLength, mode } = get()
     if (status !== 'playing') return
+    // Score Rush has no row — can't get stuck
+    if (mode === 'score_rush') return
 
     const filledLen = filledWords.reduce((sum, w) => sum + w.length, 0)
     const remaining = targetLength - filledLen
@@ -404,8 +426,36 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   shuffleLetters: () => {
-    const { status, score } = get()
+    const { status, score, mode, srShuffleTokens } = get()
     if (status !== 'playing') return
+
+    // Score Rush: use token (free) or buy for 50 points
+    if (mode === 'score_rush') {
+      if (srShuffleTokens > 0) {
+        // Use free token
+        const newLetters = pickWeightedLetters(10)
+        set({
+          letters: newLetters,
+          srShuffleTokens: srShuffleTokens - 1,
+          currentWord: '', usedTileIndices: [],
+          feedback: { text: '!ערבוב חינם 🔀', type: 'info' },
+        })
+      } else if (score >= shuffleCost()) {
+        // Buy shuffle
+        const newLetters = pickWeightedLetters(10)
+        set({
+          letters: newLetters,
+          score: score - shuffleCost(),
+          currentWord: '', usedTileIndices: [],
+          feedback: { text: `!ערבוב (${shuffleCost()}- נק׳) 🔀`, type: 'info' },
+        })
+      } else {
+        set({ feedback: { text: `נדרשות ${shuffleCost()} נקודות לערבוב ✗`, type: 'error' } })
+      }
+      return
+    }
+
+    // Other modes: standard shuffle
     if (score < shuffleCost()) {
       set({ feedback: { text: `נדרשות ${shuffleCost()} נקודות לערבוב ✗`, type: 'error' } })
       return
@@ -414,8 +464,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({
       letters: newLetters,
       score: score - shuffleCost(),
-      currentWord: '',
-      usedTileIndices: [],
+      currentWord: '', usedTileIndices: [],
       feedback: { text: `!אותיות חדשות 🔀 (${shuffleCost()}- נק׳)`, type: 'info' },
     })
   },
