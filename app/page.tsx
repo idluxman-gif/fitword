@@ -1024,17 +1024,17 @@ function MultiplayerLobby() {
             type="tel"
             inputMode="numeric"
             pattern="[0-9]*"
-            maxLength={6}
+            maxLength={4}
             value={joinCode}
             onChange={(e) => { setJoinCode(e.target.value.replace(/\D/g, '')); setJoinError('') }}
-            placeholder="000000"
+            placeholder="0000"
             className="text-center text-4xl font-bold font-mono tracking-[0.4em] bg-tile border-2 border-gray-700 rounded-xl py-3 w-full text-white placeholder-gray-600 focus:border-accent outline-none"
             autoFocus
           />
           {joinError && <p className="text-error text-sm">{joinError}</p>}
           <motion.button
             whileTap={{ scale: 0.95 }}
-            disabled={joinCode.length !== 6}
+            disabled={joinCode.length !== 4}
             onClick={async () => {
               const res = await joinRoom(joinCode)
               if (!res.ok) setJoinError(res.error || 'שגיאה')
