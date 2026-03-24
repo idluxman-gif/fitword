@@ -160,7 +160,7 @@ function TopBar() {
       </div>
 
       <AnimatePresence>
-        {showLeave && <LeaveConfirm onConfirm={goHome} onCancel={() => setShowLeave(false)} />}
+        {showLeave && <LeaveConfirm onConfirm={() => { setShowLeave(false); goHome() }} onCancel={() => setShowLeave(false)} />}
       </AnimatePresence>
 
       {/* Swap button for Endless */}
@@ -646,7 +646,7 @@ function GridTopBar() {
         <button onClick={() => setShowLeave(true)} className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-error text-sm">✕</button>
       </div>
       <AnimatePresence>
-        {showLeave && <LeaveConfirm onConfirm={goHome} onCancel={() => setShowLeave(false)} />}
+        {showLeave && <LeaveConfirm onConfirm={() => { setShowLeave(false); goHome() }} onCancel={() => setShowLeave(false)} />}
       </AnimatePresence>
     </div>
   )
@@ -1146,7 +1146,7 @@ function MultiplayerTopBar() {
         <button onClick={() => setShowLeaveConfirm(true)} className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-error text-sm">✕</button>
       </div>
       <AnimatePresence>
-        {showLeaveConfirm && <LeaveConfirm onConfirm={leaveGame} onCancel={() => setShowLeaveConfirm(false)} />}
+        {showLeaveConfirm && <LeaveConfirm onConfirm={() => { setShowLeaveConfirm(false); leaveGame() }} onCancel={() => setShowLeaveConfirm(false)} />}
       </AnimatePresence>
     </div>
   )
@@ -2158,6 +2158,49 @@ function HomeScreen() {
 }
 
 // ─── Main Page ───
+// ─── Back Button Hook ───
+function useBackButton() {
+  const status = useGameStore((s) => s.status)
+  const gridStatus = useGridStore((s) => s.status)
+  const mpStatus = useMultiplayerStore((s) => s.status)
+  const designerStatus = useDesignerStore((s) => s.status)
+  const goHome = useGameStore((s) => s.goHome)
+  const gridGoHome = useGridStore((s) => s.goHome)
+  const leaveGame = useMultiplayerStore((s) => s.leaveGame)
+
+  const isPlaying = status !== 'idle' || gridStatus !== 'idle' || mpStatus !== 'idle' || designerStatus !== 'idle'
+  const wasPlayingRef = useRef(false)
+
+  useEffect(() => {
+    if (isPlaying && !wasPlayingRef.current) {
+      // Game just started — push a history entry so back button can pop it
+      window.history.pushState({ inGame: true }, '')
+      wasPlayingRef.current = true
+    } else if (!isPlaying && wasPlayingRef.current) {
+      wasPlayingRef.current = false
+    }
+  }, [isPlaying])
+
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (wasPlayingRef.current) {
+        e.preventDefault()
+        // Go home based on which mode is active
+        if (useMultiplayerStore.getState().status !== 'idle') {
+          leaveGame()
+        } else if (useGridStore.getState().status !== 'idle') {
+          gridGoHome()
+        } else {
+          goHome()
+        }
+        wasPlayingRef.current = false
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [goHome, gridGoHome, leaveGame])
+}
+
 export default function GamePage() {
   const status = useGameStore((s) => s.status)
   const gridStatus = useGridStore((s) => s.status)
@@ -2166,6 +2209,7 @@ export default function GamePage() {
 
   useInit()
   useTimer()
+  useBackButton()
 
   const gameMode = useGameStore((s) => s.mode)
   const isGridMode = gridStatus !== 'idle'
