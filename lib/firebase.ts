@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app'
-import { getDatabase, ref, set, get, onValue, remove, update, type Database } from 'firebase/database'
+import { getDatabase, ref, set, get, onValue, remove, update, runTransaction, type Database } from 'firebase/database'
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -20,4 +20,4 @@ export function isFirebaseReady(): boolean {
   return db !== null
 }
 
-export { ref, set as fbSet, get as fbGet, onValue, remove, update }
+export { ref, set as fbSet, get as fbGet, onValue, remove, update, runTransaction }

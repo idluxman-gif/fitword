@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { db, ref, fbSet, fbGet, onValue, remove, update } from './firebase'
+import { db, ref, fbSet, fbGet, onValue, remove, update, runTransaction } from './firebase'
 import { pickWeightedLetters, scoreWord } from './game'
 import { isValidWord } from './dictionary'
 import type { Unsubscribe } from 'firebase/database'
@@ -479,16 +479,30 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   },
 
   // Called when THIS player finishes (perfect fit or timeout) → ends round for ALL
-  finishRound: () => {
+  finishRound: async () => {
     const { roomCode, status, playerId, score } = get()
     if (!db || !roomCode || status !== 'playing') return
-    // First to finish gets +40 bonus
+
     const FIRST_FINISH_BONUS = 40
-    set({ score: score + FIRST_FINISH_BONUS })
-    get().broadcastState()
-    // Write roundEnd with finisher ID — all players listen
-    fbSet(ref(db, `rooms/${roomCode}/roundEnd`), { at: Date.now(), by: playerId })
-    set({ status: 'finished', feedback: { text: `!סיימת ראשון +${FIRST_FINISH_BONUS} 🏆`, type: 'success' } })
+    const roundEndRef = ref(db, `rooms/${roomCode}/roundEnd`)
+
+    // Use transaction to check if someone already finished first
+    const { committed, snapshot } = await runTransaction(roundEndRef, (current) => {
+      if (current) return // Someone already wrote — don't overwrite
+      return { at: Date.now(), by: playerId }
+    })
+
+    const isFirst = committed && snapshot?.val()?.by === playerId
+
+    if (isFirst) {
+      set({ score: score + FIRST_FINISH_BONUS })
+      get().broadcastState()
+      set({ status: 'finished', feedback: { text: `!סיימת ראשון +${FIRST_FINISH_BONUS} 🏆`, type: 'success' } })
+    } else {
+      // Not first — just broadcast final score and mark finished
+      get().broadcastState()
+      set({ status: 'finished', feedback: { text: '!סיימת ✓', type: 'success' } })
+    }
   },
 
   // Called by host to start next round with new letters for everyone

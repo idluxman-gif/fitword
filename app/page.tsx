@@ -1381,6 +1381,20 @@ function MultiplayerGridBridge() {
     }
   }, [mpStatus, mpLetters, mpStage, mpGameMode, startGridWithLetters])
 
+  // When multiplayer round ends (another player finished), stop the grid too
+  useEffect(() => {
+    if (mpStatus === 'finished' && initRef.current) {
+      const gs = useGridStore.getState()
+      if (gs.status === 'playing') {
+        // Sync whatever score we accumulated so far
+        useMultiplayerStore.setState({ score: useMultiplayerStore.getState().score + gs.score })
+        useMultiplayerStore.getState().broadcastState()
+        // Stop the grid
+        useGridStore.setState({ status: 'lost' })
+      }
+    }
+  }, [mpStatus])
+
   // Reset grid store when leaving multiplayer
   useEffect(() => {
     if (mpStatus === 'idle' && initRef.current) {
@@ -1398,9 +1412,9 @@ function MultiplayerGridBridge() {
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [gridStatus, gridTick])
 
-  // When grid is won, sync score to multiplayer and finish round
+  // When grid completes (stage_clear or won), sync score to multiplayer and finish round
   useEffect(() => {
-    if (initRef.current && gridStatus === 'won') {
+    if (initRef.current && (gridStatus === 'won' || gridStatus === 'stage_clear')) {
       useMultiplayerStore.setState({ score: useMultiplayerStore.getState().score + gridScore })
       broadcastState()
       finishRound()
