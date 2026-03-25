@@ -13,7 +13,7 @@ export default function PMPage() {
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-purple-400">Exacto — PM Dashboard</h1>
-            <p className="text-sm text-gray-500">Hebrew word game · Last updated: March 24, 2026</p>
+            <p className="text-sm text-gray-500">Hebrew word game · Last updated: March 25, 2026</p>
           </div>
           <a href="https://fitword.vercel.app" target="_blank" className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-500">
             Live App →
@@ -73,24 +73,29 @@ export default function PMPage() {
             <StatusItem status="done" text="Personal bests tracked in localStorage" />
             <StatusItem status="done" text="RTL throughout, mobile-first (375px), no horizontal scroll" />
             <StatusItem status="done" text="Rebranded from FitWord → Exacto" />
+            <StatusItem status="done" text="Shape sanitization — removes peninsula cells (≤1 neighbor) and length-1 run cells to prevent unsolvable boards" />
+            <StatusItem status="done" text="Arrow direction limiting — only shows valid directions (skips filled cells, out-of-bounds, blocked)" />
+            <StatusItem status="done" text="Blocked cells frozen at generation — no mid-game dynamic blocking, puzzle integrity preserved" />
+            <StatusItem status="done" text="Arrow visibility improved — white text, larger, purple glow shadow" />
+            <StatusItem status="done" text="Dictionary additions: פעולה (action), מש (moving), לק (nail polish), and 30+ common words via manual supplement" />
+            <StatusItem status="done" text="PM Dashboard page at /pm with full project status, version history, and session log" />
           </div>
         </Section>
 
         {/* ─── What's Left / Known Issues ─── */}
         <Section title="🔧 What's Left / Known Issues">
           <div className="space-y-3">
-            <StatusItem status="bug" text="Multiplayer mode selection — sometimes starts wrong mode (e.g. Shapes selected but row game starts). Routing from HomeScreen → Firebase room → game renderer needs audit" />
-            <StatusItem status="bug" text="Multiplayer scoring — scores not syncing correctly in Grid/Shapes modes. Both players getting identical scores (40pts = first-finish bonus only, word scores missing)" />
-            <StatusItem status="bug" text="Multiplayer level sync — when all players finish, should end immediately. Currently waits for timer" />
-            <StatusItem status="todo" text="Score Rush real-time score display — total at top doesn't update during play, only after level" />
-            <StatusItem status="todo" text="Screen fit — some modes still slightly overflow on certain phones (1cm scroll)" />
-            <StatusItem status="todo" text="Shapes variety — need to verify randomization and ensure no repetition in early stages" />
-            <StatusItem status="todo" text="Grid isolated cell detection — show 'no more moves' when single squares remain" />
+            <StatusItem status="bug" text="Multiplayer mode selection — sometimes starts wrong mode (e.g. Shapes selected but row game starts). Needs audit of mode propagation from HomeScreen → Firebase room → game renderer" />
+            <StatusItem status="bug" text="Multiplayer scoring — scores not syncing correctly in Grid/Shapes modes. Word scores from grid store not bridging to multiplayer store" />
+            <StatusItem status="bug" text="Multiplayer level sync — when all players finish, round should end immediately. Currently waits for timer in some cases" />
+            <StatusItem status="bug" text="Score Rush real-time score — total at top doesn't update during play, only after level ends" />
+            <StatusItem status="todo" text="Dictionary gaps — users keep finding missing common words. Need to evaluate switching to a larger source or adding a user-reported missing word pipeline" />
             <StatusItem status="todo" text="Tutorial / onboarding for new players" />
             <StatusItem status="todo" text="Share score functionality" />
             <StatusItem status="todo" text="Daily challenge mode" />
             <StatusItem status="todo" text="App icons for real devices (currently generated programmatically)" />
             <StatusItem status="todo" text="Offensive word filter (dictionary is from academic source, should be clean but unverified)" />
+            <StatusItem status="todo" text="Shape variety at higher stages — need more diverse procedural shapes as difficulty increases" />
           </div>
         </Section>
 
@@ -162,6 +167,21 @@ export default function PMPage() {
                 'Perfect Fit bonus removed',
               ]}
             />
+            <VersionEntry
+              version="Sprint 3.5 — Shape Solvability & Polish"
+              date="March 25, 2026"
+              changes={[
+                'Shape sanitization: 2-rule system — (1) remove cells with ≤1 neighbor (peninsulas/bridges), (2) remove cells with only length-1 runs. Cascading until stable.',
+                'Blocked cells frozen at generation time — no mid-game dynamic blocking. Puzzle is the puzzle.',
+                'Arrow direction limiting: only cycles through valid directions (skips filled cells, blocked, out-of-bounds)',
+                'Arrow visual: white, 2xl, bold, purple glow shadow for better visibility',
+                'Layer 3 (dynamic mid-game blocking) reverted — was too aggressive, completing levels prematurely',
+                'Dictionary: added פעולה (action), manual supplement system for missing words',
+                'Win condition: fill all active && !blocked cells. Blocked cells excluded.',
+                'Custom levels (designer) also run sanitization before play',
+                'PM Dashboard updated with full session log',
+              ]}
+            />
           </div>
         </Section>
 
@@ -217,7 +237,9 @@ export default function PMPage() {
                 ['Web Audio API (no files)', 'Zero external dependencies, instant load, small bundle size'],
                 ['Zustand over Context', 'Performance: no re-renders, simple API, tiny bundle'],
                 ['Tailwind v3 over v4', 'v4 uses CSS-based config, v3 more stable with Next.js 14'],
-                ['Shapes: 30+ templates', 'Procedural generation alone produces boring shapes, handcrafted ones are more fun'],
+                ['Shapes: fully procedural', 'Procedural generation with sanitization. No hardcoded templates — infinite variety.'],
+                ['≤1 neighbor = removed', 'Peninsula cells create unsolvable bridges. Strongest simple rule: every cell needs 2+ neighbors.'],
+                ['Blocked at birth only', 'Mid-game blocking was too aggressive — auto-completed puzzles. Blocked cells frozen at generation.'],
                 ['4-digit numeric codes', 'Easier to type on phone, easier to read aloud to friends'],
                 ['White filled cells (no letters)', 'Showing letters confused testers into thinking it was a crossword'],
               ].map(([decision, why], i) => (
@@ -405,6 +427,55 @@ Round generation: pick 7 weighted-random distinct letters → verify ≥2 dictio
 - Every 10 correct words → auto-shuffle + earn manual shuffle token
 - Manual shuffle costs 50 pts ("buy shuffle" like lives)
 - Big score popup in center with fade in/out effect
+              `}
+            />
+
+            <LogEntry
+              date="March 25, 2026 — Morning"
+              title="Shape Solvability Crisis"
+              content={`
+**Problem reported:** User found multiple shapes that were impossible to solve. Example: a cross-shaped board with a single cell protruding from the top. That cell acted as a bridge — filling it in any direction would split the remaining cells into unreachable fragments.
+
+**Root cause:** The shape generator created connected shapes but didn't validate that every cell could actually be part of a complete solution. A cell could be connected (has neighbors) but still create an unsolvable puzzle.
+
+**Layer 1 attempt — Template audit:**
+Discovered all shapes are procedurally generated (no handcrafted templates). So the fix needed to be algorithmic.
+
+**Layer 2 — Generation-time blocking:**
+Added markBlockedCells() — marks cells as blocked (dark ✕) if they have no adjacent unfilled neighbor. Runs once at generation. But this only caught completely isolated cells, not bridge cells.
+
+**Layer 3 — Dynamic mid-game blocking (REVERTED):**
+Added markBlockedCells() after every word placement. This was too aggressive — it blocked cells mid-game that the player intended to fill, and auto-completed levels prematurely. User correctly identified: "the game completes levels that haven't been fully solved." Reverted.
+
+**Final fix — sanitizeShape() with 2 rules:**
+- Rule 1: Any cell with ≤1 active neighbor → removed (eliminates peninsulas/bridges)
+- Rule 2: Any cell with only length-1 runs in both axes → removed
+- Iterates until stable (cascading removals)
+- Runs after generation, before presenting to player
+- Fallback: if everything removed, return safe 3×3 block
+
+**Key principle established:** "Blocked = decided at birth, never changes. The puzzle is the puzzle. The player must solve it."
+              `}
+            />
+
+            <LogEntry
+              date="March 25, 2026 — Afternoon"
+              title="Arrow Direction & Dictionary Fixes"
+              content={`
+**Arrow direction fix:**
+User reported arrow pointing at already-filled cells. getValidDirections() was checking active && !blocked but not !filled. Fixed: directions into filled cells are now excluded from rotation.
+
+Also: if a cell is at a corner or edge, only the valid directions are offered (e.g., top-right corner → only left and down).
+
+**Arrow visibility:**
+Made arrow bigger and brighter — white text, 2xl size, bold weight, purple glow drop-shadow.
+
+**Dictionary additions:**
+- פעולה (action) — reported as missing by user
+- Manual supplement system in build-dictionary.js allows adding words without re-fetching the full dataset
+
+**PM Dashboard:**
+Created /pm page with full project status, version history, architecture diagram, scoring reference, key decisions table, and complete Claude Code session log.
               `}
             />
 
