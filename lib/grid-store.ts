@@ -97,21 +97,33 @@ function sanitizeShape(shape: boolean[][]): boolean[][] {
       for (let c = 0; c < cols; c++) {
         if (!grid[r][c]) continue
 
+        // Count active neighbors in each direction
+        const neighbors = [
+          r > 0 && grid[r - 1][c],       // up
+          r < rows - 1 && grid[r + 1][c], // down
+          c > 0 && grid[r][c - 1],        // left
+          c < cols - 1 && grid[r][c + 1], // right
+        ].filter(Boolean).length
+
+        // Rule 1: Remove cells with only 1 neighbor (peninsulas/bridges)
+        // These create unsolvable protrusions
+        if (neighbors <= 1) {
+          grid[r][c] = false
+          changed = true
+          continue
+        }
+
+        // Rule 2: Remove cells that only belong to runs of length 1
         // Check horizontal run length through this cell
         let hLen = 1
-        // Count left
         for (let cc = c - 1; cc >= 0 && grid[r][cc]; cc--) hLen++
-        // Count right
         for (let cc = c + 1; cc < cols && grid[r][cc]; cc++) hLen++
 
         // Check vertical run length through this cell
         let vLen = 1
-        // Count up
         for (let rr = r - 1; rr >= 0 && grid[rr][c]; rr--) vLen++
-        // Count down
         for (let rr = r + 1; rr < rows && grid[rr][c]; rr++) vLen++
 
-        // If this cell only belongs to runs of length 1, remove it
         if (hLen < 2 && vLen < 2) {
           grid[r][c] = false
           changed = true
