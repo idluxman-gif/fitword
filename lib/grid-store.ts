@@ -128,6 +128,30 @@ function countPlayableCells(grid: GridCell[][]): number {
   return count
 }
 
+/**
+ * Get valid directions for a cell: directions where there's at least 1
+ * adjacent active non-blocked cell (so a 2+ letter word is possible).
+ * Returns subset of DIRECTION_CYCLE in clockwise order.
+ */
+function getValidDirections(
+  grid: GridCell[][], rows: number, cols: number, row: number, col: number
+): Direction[] {
+  const checks: { dir: Direction; dr: number; dc: number }[] = [
+    { dir: 'right', dr: 0, dc: -1 }, // RTL: 'right' fills leftward
+    { dir: 'down', dr: 1, dc: 0 },
+    { dir: 'left', dr: 0, dc: 1 },   // RTL: 'left' fills rightward
+    { dir: 'up', dr: -1, dc: 0 },
+  ]
+
+  return DIRECTION_CYCLE.filter((d) => {
+    const check = checks.find((c) => c.dir === d)!
+    const nr = row + check.dr, nc = col + check.dc
+    if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) return false
+    const neighbor = grid[nr][nc]
+    return neighbor.active && !neighbor.blocked
+  })
+}
+
 function getShapeDifficulty(stage: number): { targetCells: number; maxSize: number } {
   // Progressive: more cells and bigger canvas as stages increase
   if (stage <= 2) return { targetCells: 8 + stage, maxSize: 5 }
@@ -401,20 +425,26 @@ export const useGridStore = create<GridState>((set, get) => ({
   },
 
   selectCell: (row: number, col: number) => {
-    const { selectedCell, direction, status, grid } = get()
+    const { selectedCell, direction, status, grid, gridRows, gridCols } = get()
     if (status !== 'playing') return
 
     // Can't select blocked or filled cells
     const cell = grid[row]?.[col]
     if (!cell || !cell.active || cell.blocked || cell.filled) return
 
-    // If tapping the same cell, cycle direction
+    // Compute valid directions: a direction is valid if there's at least 1
+    // adjacent active non-blocked cell in that direction from this cell
+    const validDirs = getValidDirections(grid, gridRows, gridCols, row, col)
+    if (validDirs.length === 0) return // isolated cell, shouldn't happen but safety
+
     if (selectedCell && selectedCell.row === row && selectedCell.col === col) {
-      const idx = DIRECTION_CYCLE.indexOf(direction)
-      const nextDir = DIRECTION_CYCLE[(idx + 1) % DIRECTION_CYCLE.length]
+      // Cycle to next valid direction
+      const currentIdx = validDirs.indexOf(direction)
+      const nextDir = validDirs[(currentIdx + 1) % validDirs.length]
       set({ direction: nextDir, feedback: null })
     } else {
-      set({ selectedCell: { row, col }, direction: 'right', currentWord: '', usedTileIndices: [], feedback: null })
+      // New cell selected — pick first valid direction
+      set({ selectedCell: { row, col }, direction: validDirs[0], currentWord: '', usedTileIndices: [], feedback: null })
     }
   },
 
