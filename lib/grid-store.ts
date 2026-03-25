@@ -201,7 +201,7 @@ function getValidDirections(
     const nr = row + check.dr, nc = col + check.dc
     if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) return false
     const neighbor = grid[nr][nc]
-    return neighbor.active && !neighbor.blocked
+    return neighbor.active && !neighbor.blocked && !neighbor.filled
   })
 }
 

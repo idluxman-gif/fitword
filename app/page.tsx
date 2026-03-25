@@ -615,7 +615,7 @@ function GridBoard() {
                 style={{ width: cellSize, height: cellSize }}
               >
                 {cell.filled ? '' : isSelected ? (
-                  <span className="text-accent text-lg">{DIR_ARROWS[direction]}</span>
+                  <span className="text-white text-2xl font-black drop-shadow-[0_0_6px_rgba(124,58,237,0.8)]">{DIR_ARROWS[direction]}</span>
                 ) : ''}
               </motion.button>
             )
