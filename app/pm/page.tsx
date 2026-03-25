@@ -13,7 +13,7 @@ export default function PMPage() {
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-purple-400">Exacto — PM Dashboard</h1>
-            <p className="text-sm text-gray-500">Hebrew word game · Last updated: March 25, 2026</p>
+            <p className="text-sm text-gray-500">Hebrew word game · Last updated: March 25, 2026 (v3.6)</p>
           </div>
           <a href="https://fitword.vercel.app" target="_blank" className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-500">
             Live App →
@@ -79,6 +79,7 @@ export default function PMPage() {
             <StatusItem status="done" text="Arrow visibility improved — white text, larger, purple glow shadow" />
             <StatusItem status="done" text="Dictionary additions: פעולה (action), מש (moving), לק (nail polish), and 30+ common words via manual supplement" />
             <StatusItem status="done" text="PM Dashboard page at /pm with full project status, version history, and session log" />
+            <StatusItem status="done" text="Offensive word filter — blocklist with sofit normalization, blocks profanity/slurs/explicit terms from isValidWord() and getWordsFromLetters()" />
           </div>
         </Section>
 
@@ -94,7 +95,7 @@ export default function PMPage() {
             <StatusItem status="todo" text="Share score functionality" />
             <StatusItem status="todo" text="Daily challenge mode" />
             <StatusItem status="todo" text="App icons for real devices (currently generated programmatically)" />
-            <StatusItem status="todo" text="Offensive word filter (dictionary is from academic source, should be clean but unverified)" />
+            <StatusItem status="done" text="Offensive word filter — blocklist with sofit normalization applied to isValidWord() and getWordsFromLetters()" />
             <StatusItem status="todo" text="Shape variety at higher stages — need more diverse procedural shapes as difficulty increases" />
           </div>
         </Section>

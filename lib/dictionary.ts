@@ -2929,6 +2929,58 @@ const WORDS: string[] = [
 const WORD_SET = new Set(WORDS)
 
 /**
+ * Offensive/inappropriate word blocklist.
+ * These words return false from isValidWord() even if they exist in the dataset.
+ * Includes profanity, slurs, explicit sexual terms in Hebrew.
+ * Both regular and sofit forms are auto-expanded below.
+ */
+const BLOCKLIST_RAW: string[] = [
+  // Profanity / vulgar
+  'זין', 'זיון', 'זיין', 'זונה', 'זונות', 'שרמוט', 'שרמוטה', 'כוס', 'כוסית',
+  'תחת', 'מניאק', 'חרא', 'חארה', 'חרה', 'מזדיין', 'מזדיינת',
+  'לזיין', 'יזיין', 'תזיין', 'אזיין', 'נזיין',
+  'מזיין', 'מזיינת', 'הזדיין', 'הזדיינו', 'הזדיינת',
+  // Slurs / derogatory
+  'מפגר', 'מפגרת', 'מפגרים', 'מוגבל',
+  'חמור', // only derogatory as standalone insult — but it's also "donkey", keep it out to be safe
+  // Sexual explicit
+  'סקס', 'פורנו', 'ביצים',
+  'דפוק', 'דפוקה', 'דפוקים',
+  'חרמן', 'חרמנית', 'חרמנים',
+  // Offensive compound roots
+  'בנזונה', 'בןזונה',
+  'כוסאמק', 'כוסאמך',
+]
+
+// Build blocklist Set with sofit normalization
+const BLOCKLIST = new Set<string>()
+for (const word of BLOCKLIST_RAW) {
+  BLOCKLIST.add(word)
+  // Add sofit variant (last char regular → sofit)
+  const last = word[word.length - 1]
+  const SOFIT_MAP: Record<string, string> = { 'כ': 'ך', 'מ': 'ם', 'נ': 'ן', 'פ': 'ף', 'צ': 'ץ' }
+  const REGULAR_MAP: Record<string, string> = { 'ך': 'כ', 'ם': 'מ', 'ן': 'נ', 'ף': 'פ', 'ץ': 'צ' }
+  if (SOFIT_MAP[last]) BLOCKLIST.add(word.slice(0, -1) + SOFIT_MAP[last])
+  if (REGULAR_MAP[last]) BLOCKLIST.add(word.slice(0, -1) + REGULAR_MAP[last])
+  // Also normalize mid-word sofits
+  let normalized = ''
+  for (let i = 0; i < word.length; i++) {
+    const ch = word[i]
+    normalized += (i < word.length - 1 && REGULAR_MAP[ch]) ? REGULAR_MAP[ch] : ch
+  }
+  BLOCKLIST.add(normalized)
+  const normLast = normalized[normalized.length - 1]
+  if (SOFIT_MAP[normLast]) BLOCKLIST.add(normalized.slice(0, -1) + SOFIT_MAP[normLast])
+}
+
+/**
+ * Check if a word is blocked (offensive/inappropriate).
+ */
+function isBlocked(word: string): boolean {
+  return BLOCKLIST.has(word)
+}
+
+/**
  * Hebrew final letters (sofit) mapping.
  * Regular form → final form (used at end of words).
  */
@@ -2985,8 +3037,12 @@ function sofitVariants(word: string): string[] {
   return Array.from(variants)
 }
 
-/** Check if a word is valid. Handles sofit normalization automatically. */
+/** Check if a word is valid. Handles sofit normalization. Rejects blocked words. */
 export function isValidWord(word: string): boolean {
+  // Check all sofit variants against blocklist first
+  for (const variant of sofitVariants(word)) {
+    if (isBlocked(variant)) return false
+  }
   for (const variant of sofitVariants(word)) {
     if (WORD_SET.has(variant)) return true
   }
@@ -3011,6 +3067,8 @@ export function getWordsFromLetters(letters: string[]): string[] {
     if (SOFIT_TO_REGULAR[l]) letterSet.add(SOFIT_TO_REGULAR[l])
   }
   return WORDS.filter((word) => {
+    // Skip blocked words
+    if (isBlocked(word)) return false
     for (const char of word) {
       if (!letterSet.has(char)) return false
     }
