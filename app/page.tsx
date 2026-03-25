@@ -586,6 +586,19 @@ function GridBoard() {
               // Inactive cell — invisible spacer
               return <div key={`${r}-${c}`} style={{ width: cellSize, height: cellSize }} />
             }
+            // Blocked cell — dark distinct fill, not interactive
+            if (cell.blocked) {
+              return (
+                <div
+                  key={`${r}-${c}`}
+                  className="rounded-lg bg-gray-900/80 border-2 border-gray-800/30 flex items-center justify-center"
+                  style={{ width: cellSize, height: cellSize }}
+                  title="משבצת חסומה"
+                >
+                  <span className="text-gray-700 text-[10px]">✕</span>
+                </div>
+              )
+            }
             const isSelected = selectedCell?.row === r && selectedCell?.col === c
             return (
               <motion.button
@@ -623,8 +636,9 @@ function GridTopBar() {
   const toggleMute = useGridStore((s) => s.toggleMute)
   const goHome = useGridStore((s) => s.goHome)
 
-  const totalCells = grid.flat().length
-  const filledCells = grid.flat().filter((c) => c.filled).length
+  const activeCells = grid.flat().filter((c) => c.active && !c.blocked)
+  const totalCells = activeCells.length
+  const filledCells = activeCells.filter((c) => c.filled).length
 
   const minutes = Math.floor(timeLeft / 60)
   const seconds = timeLeft % 60

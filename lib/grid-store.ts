@@ -11,8 +11,9 @@ const DIRECTION_CYCLE: Direction[] = ['right', 'down', 'left', 'up']
 
 interface GridCell {
   char: string | null
-  filled: boolean // true = part of a valid word (white)
-  active: boolean // false = disabled cell (not part of shape)
+  filled: boolean  // true = part of a valid word (white)
+  active: boolean  // false = disabled cell (not part of shape)
+  blocked: boolean // true = unreachable cell (can't be part of any word)
 }
 
 export interface PlacedWord {
@@ -69,6 +70,64 @@ function generateRandomShape(targetCells: number, maxSize: number): boolean[][] 
   return grid.slice(minR, maxR + 1).map((row) => row.slice(minC, maxC + 1))
 }
 
+/**
+ * Check reachability: a cell is "reachable" if it has at least 1 neighbor
+ * in the same row or column that is also active+unfilled+unblocked.
+ * (i.e., it can be part of a 2+ letter word in at least one direction)
+ */
+function isReachable(grid: GridCell[][], r: number, c: number): boolean {
+  const rows = grid.length
+  const cols = grid[0].length
+  const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]]
+  for (const [dr, dc] of dirs) {
+    const nr = r + dr, nc = c + dc
+    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+      const neighbor = grid[nr][nc]
+      if (neighbor.active && !neighbor.filled && !neighbor.blocked) return true
+    }
+  }
+  return false
+}
+
+/**
+ * Mark all unreachable empty cells as blocked.
+ * Returns true if any cells were newly blocked.
+ */
+function markBlockedCells(grid: GridCell[][]): boolean {
+  let changed = false
+  // May need multiple passes: blocking one cell can isolate its neighbor
+  let moreToCheck = true
+  while (moreToCheck) {
+    moreToCheck = false
+    for (let r = 0; r < grid.length; r++) {
+      for (let c = 0; c < grid[0].length; c++) {
+        const cell = grid[r][c]
+        if (cell.active && !cell.filled && !cell.blocked) {
+          if (!isReachable(grid, r, c)) {
+            cell.blocked = true
+            changed = true
+            moreToCheck = true // blocking this cell may isolate neighbors
+          }
+        }
+      }
+    }
+  }
+  return changed
+}
+
+/**
+ * Count remaining cells that need to be filled (active, not filled, not blocked).
+ */
+function countPlayableCells(grid: GridCell[][]): number {
+  let count = 0
+  for (const row of grid) {
+    for (const cell of row) {
+      if (cell.active && !cell.filled && !cell.blocked) count++
+    }
+  }
+  return count
+}
+
 function getShapeDifficulty(stage: number): { targetCells: number; maxSize: number } {
   // Progressive: more cells and bigger canvas as stages increase
   if (stage <= 2) return { targetCells: 8 + stage, maxSize: 5 }
@@ -84,8 +143,10 @@ function pickShape(stage: number): { grid: GridCell[][], rows: number, cols: num
   const rows = shape.length
   const cols = shape[0]?.length || 1
   const grid: GridCell[][] = shape.map((row) =>
-    row.map((active) => ({ char: null, filled: !active, active }))
+    row.map((active) => ({ char: null, filled: !active, active, blocked: false }))
   )
+  // Layer 2: Mark unreachable cells as blocked at generation time
+  markBlockedCells(grid)
   return { grid, rows, cols }
 }
 
@@ -147,7 +208,7 @@ function getGridSize(stage: number): { rows: number; cols: number } {
 
 function createEmptyGrid(rows: number, cols: number): GridCell[][] {
   return Array.from({ length: rows }, () =>
-    Array.from({ length: cols }, () => ({ char: null, filled: false, active: true }))
+    Array.from({ length: cols }, () => ({ char: null, filled: false, active: true, blocked: false }))
   )
 }
 
@@ -274,8 +335,9 @@ export const useGridStore = create<GridState>((set, get) => ({
     const letters = pickWeightedLetters(10)
     // Convert shape boolean[][] to GridCell[][]
     const grid: GridCell[][] = shape.map((row) =>
-      row.map((active) => ({ char: null, filled: !active, active }))
+      row.map((active) => ({ char: null, filled: !active, active, blocked: false }))
     )
+    markBlockedCells(grid)
     set({
       difficulty: 'shapes' as GridDifficulty,
       gridRows: rows, gridCols: cols, grid,
@@ -339,8 +401,12 @@ export const useGridStore = create<GridState>((set, get) => ({
   },
 
   selectCell: (row: number, col: number) => {
-    const { selectedCell, direction, status } = get()
+    const { selectedCell, direction, status, grid } = get()
     if (status !== 'playing') return
+
+    // Can't select blocked or filled cells
+    const cell = grid[row]?.[col]
+    if (!cell || !cell.active || cell.blocked || cell.filled) return
 
     // If tapping the same cell, cycle direction
     if (selectedCell && selectedCell.row === row && selectedCell.col === col) {
@@ -388,9 +454,14 @@ export const useGridStore = create<GridState>((set, get) => ({
     // Calculate cells the word would occupy
     const cells = getWordCells(selectedCell.row, selectedCell.col, direction, currentWord.length)
 
-    // Check bounds + active cells
+    // Check bounds + active + not blocked
     for (const c of cells) {
-      if (c.row < 0 || c.row >= gridRows || c.col < 0 || c.col >= gridCols || !grid[c.row][c.col].active) {
+      if (c.row < 0 || c.row >= gridRows || c.col < 0 || c.col >= gridCols) {
+        set({ feedback: { text: '.חורג מהרשת ✗', type: 'error' }, currentWord: '', usedTileIndices: [] })
+        return
+      }
+      const target = grid[c.row][c.col]
+      if (!target.active || target.blocked) {
         set({ feedback: { text: '.חורג מהרשת ✗', type: 'error' }, currentWord: '', usedTileIndices: [] })
         return
       }
@@ -408,19 +479,22 @@ export const useGridStore = create<GridState>((set, get) => ({
     // Place the word!
     const newGrid = grid.map((row) => row.map((cell) => ({ ...cell })))
     for (let i = 0; i < cells.length; i++) {
-      newGrid[cells[i].row][cells[i].col] = { char: currentWord[i], filled: true, active: true }
+      newGrid[cells[i].row][cells[i].col] = { char: currentWord[i], filled: true, active: true, blocked: false }
     }
 
     const wordScore = scoreWord(currentWord)
     const newPlacedWords = [...placedWords, { word: currentWord, row: selectedCell.row, col: selectedCell.col, direction, cells }]
 
-    // Check win: all cells filled
-    // Win: all active cells are filled (inactive cells don't count)
-    const allFilled = newGrid.every((row) => row.every((cell) => !cell.active || cell.filled))
+    // Layer 3: After placing, re-check reachability and mark newly isolated cells as blocked
+    markBlockedCells(newGrid)
 
-    if (allFilled) {
-      const totalScore = score + wordScore // no perfect fit bonus
-      saveBest('bestStageGrid', get().stage)
+    // Win check: all playable cells (active, not blocked) are filled
+    const playable = countPlayableCells(newGrid)
+
+    if (playable === 0) {
+      const totalScore = score + wordScore
+      const bestKey = get().difficulty === 'shapes' ? 'bestStageShapes' : 'bestStageGrid'
+      saveBest(bestKey, get().stage)
       set({
         grid: newGrid,
         placedWords: newPlacedWords,
@@ -429,7 +503,7 @@ export const useGridStore = create<GridState>((set, get) => ({
         score: totalScore,
         status: 'stage_clear',
         feedback: { text: `!הרשת מלאה 🎉 +50 בונוס שלב`, type: 'success' },
-        bestStageGrid: Math.max(get().bestStageGrid, get().stage),
+        [bestKey]: Math.max(get()[bestKey as keyof GridState] as number, get().stage),
       })
     } else {
       set({
@@ -440,29 +514,6 @@ export const useGridStore = create<GridState>((set, get) => ({
         score: score + wordScore,
         feedback: { text: `+${wordScore} נק׳ ✓`, type: 'success' },
       })
-
-      // Check if any remaining unfilled cells are isolated (can't form a 2-letter word)
-      const remaining = newGrid.flatMap((row, r) =>
-        row.map((cell, c) => (cell.active && !cell.filled ? { r, c } : null)).filter(Boolean)
-      ) as { r: number; c: number }[]
-
-      if (remaining.length > 0) {
-        const hasIsolated = remaining.some(({ r, c }) => {
-          const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]]
-          return !dirs.some(([dr, dc]) => {
-            const nr = r + dr, nc = c + dc
-            if (nr < 0 || nr >= newGrid.length || nc < 0 || nc >= newGrid[0].length) return false
-            const neighbor = newGrid[nr][nc]
-            return neighbor.active && !neighbor.filled
-          })
-        })
-        if (hasIsolated) {
-          set({
-            status: 'lost',
-            feedback: { text: '!אין מהלכים אפשריים — נשארו משבצות בודדות', type: 'warning' },
-          })
-        }
-      }
     }
   },
 
@@ -483,9 +534,17 @@ export const useGridStore = create<GridState>((set, get) => ({
     const newGrid = grid.map((row) => row.map((cell) => ({ ...cell })))
     for (const c of last.cells) {
       if (!otherCellKeys.has(`${c.row},${c.col}`)) {
-        newGrid[c.row][c.col] = { char: null, filled: false, active: true }
+        newGrid[c.row][c.col] = { char: null, filled: false, active: true, blocked: false }
       }
     }
+    // Unblock all cells first, then re-check reachability
+    // (removing a word may make previously blocked cells reachable)
+    for (const row of newGrid) {
+      for (const cell of row) {
+        if (cell.blocked) cell.blocked = false
+      }
+    }
+    markBlockedCells(newGrid)
 
     set({
       grid: newGrid,
