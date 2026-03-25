@@ -485,10 +485,8 @@ export const useGridStore = create<GridState>((set, get) => ({
     const wordScore = scoreWord(currentWord)
     const newPlacedWords = [...placedWords, { word: currentWord, row: selectedCell.row, col: selectedCell.col, direction, cells }]
 
-    // Layer 3: After placing, re-check reachability and mark newly isolated cells as blocked
-    markBlockedCells(newGrid)
-
     // Win check: all playable cells (active, not blocked) are filled
+    // Blocked cells are frozen from generation time — never change mid-game
     const playable = countPlayableCells(newGrid)
 
     if (playable === 0) {
@@ -534,17 +532,11 @@ export const useGridStore = create<GridState>((set, get) => ({
     const newGrid = grid.map((row) => row.map((cell) => ({ ...cell })))
     for (const c of last.cells) {
       if (!otherCellKeys.has(`${c.row},${c.col}`)) {
-        newGrid[c.row][c.col] = { char: null, filled: false, active: true, blocked: false }
+        // Restore cell to empty — preserve original blocked state from generation
+        const original = grid[c.row][c.col]
+        newGrid[c.row][c.col] = { char: null, filled: false, active: true, blocked: original.blocked }
       }
     }
-    // Unblock all cells first, then re-check reachability
-    // (removing a word may make previously blocked cells reachable)
-    for (const row of newGrid) {
-      for (const cell of row) {
-        if (cell.blocked) cell.blocked = false
-      }
-    }
-    markBlockedCells(newGrid)
 
     set({
       grid: newGrid,
