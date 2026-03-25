@@ -57,17 +57,70 @@ function generateRandomShape(targetCells: number, maxSize: number): boolean[][] 
     }
   }
 
+  // Sanitize: remove cells that can't be part of any 2+ letter word
+  const sanitized = sanitizeShape(grid)
+
   // Trim empty rows/cols
   let minR = size, maxR = 0, minC = size, maxC = 0
   for (let r = 0; r < size; r++) {
     for (let c = 0; c < size; c++) {
-      if (grid[r][c]) {
+      if (sanitized[r][c]) {
         minR = Math.min(minR, r); maxR = Math.max(maxR, r)
         minC = Math.min(minC, c); maxC = Math.max(maxC, c)
       }
     }
   }
-  return grid.slice(minR, maxR + 1).map((row) => row.slice(minC, maxC + 1))
+  // If sanitization removed too many cells, return a safe fallback
+  if (maxR < minR) {
+    // Everything was removed — return a simple 3x3 block
+    return [[true, true, true], [true, true, true], [true, true, true]]
+  }
+  return sanitized.slice(minR, maxR + 1).map((row) => row.slice(minC, maxC + 1))
+}
+
+/**
+ * Sanitize a shape: remove cells that only belong to runs of length 1.
+ * A "run" is a consecutive sequence of active cells in a row or column.
+ * A cell that only belongs to length-1 runs can never be part of a valid word.
+ * Iterates until stable (removing a cell can create new length-1 runs).
+ * Works on the raw boolean[][] before converting to GridCell[][].
+ */
+function sanitizeShape(shape: boolean[][]): boolean[][] {
+  const grid = shape.map((row) => [...row])
+  const rows = grid.length
+  const cols = grid[0]?.length || 0
+
+  let changed = true
+  while (changed) {
+    changed = false
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (!grid[r][c]) continue
+
+        // Check horizontal run length through this cell
+        let hLen = 1
+        // Count left
+        for (let cc = c - 1; cc >= 0 && grid[r][cc]; cc--) hLen++
+        // Count right
+        for (let cc = c + 1; cc < cols && grid[r][cc]; cc++) hLen++
+
+        // Check vertical run length through this cell
+        let vLen = 1
+        // Count up
+        for (let rr = r - 1; rr >= 0 && grid[rr][c]; rr--) vLen++
+        // Count down
+        for (let rr = r + 1; rr < rows && grid[rr][c]; rr++) vLen++
+
+        // If this cell only belongs to runs of length 1, remove it
+        if (hLen < 2 && vLen < 2) {
+          grid[r][c] = false
+          changed = true
+        }
+      }
+    }
+  }
+
+  return grid
 }
 
 /**
@@ -357,8 +410,9 @@ export const useGridStore = create<GridState>((set, get) => ({
 
   startFromCustomLevel: (shape: boolean[][], rows: number, cols: number, timer: number, stage: number = 1) => {
     const letters = pickWeightedLetters(10)
-    // Convert shape boolean[][] to GridCell[][]
-    const grid: GridCell[][] = shape.map((row) =>
+    // Sanitize + convert shape boolean[][] to GridCell[][]
+    const sanitized = sanitizeShape(shape)
+    const grid: GridCell[][] = sanitized.map((row) =>
       row.map((active) => ({ char: null, filled: !active, active, blocked: false }))
     )
     markBlockedCells(grid)
