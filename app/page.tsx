@@ -875,11 +875,6 @@ function GridGame() {
 const MODE_NAMES: Record<string, string> = { quick: 'משחק מהיר', endless: 'אינסוף', score_rush: 'ריצת ניקוד', grid: 'מלא את הרשת' }
 
 function MultiplayerLobby() {
-  const [joinCode, setJoinCode] = useState('')
-  const [joinError, setJoinError] = useState('')
-  const [tab, setTab] = useState<'choose' | 'create' | 'join'>('choose')
-  const createRoom = useMultiplayerStore((s) => s.createRoom)
-  const joinRoom = useMultiplayerStore((s) => s.joinRoom)
   const startMatch = useMultiplayerStore((s) => s.startMatch)
   const leaveGame = useMultiplayerStore((s) => s.leaveGame)
   const setPlayerName = useMultiplayerStore((s) => s.setPlayerName)
@@ -904,167 +899,98 @@ function MultiplayerLobby() {
     )
   }
 
-  if (status === 'waiting' || status === 'lobby') {
-    return (
-      <div className="fixed inset-0 bg-bg flex flex-col items-center justify-center z-50 px-6">
-        <h2 className="text-2xl font-bold text-accent mb-1">חדר משחק</h2>
-        <p className="text-gray-400 text-sm mb-3">{MODE_NAMES[gameMode] || gameMode}</p>
+  if (status !== 'waiting' && status !== 'lobby') return null
 
-        {/* Room code */}
-        <div className="mb-4 text-center">
-          <p className="text-gray-400 text-sm mb-1">קוד חדר:</p>
-          <div className="text-5xl font-bold text-white tracking-[0.3em] font-mono">{roomCode}</div>
-          <p className="text-gray-500 text-xs mt-1">שתפו את הקוד עם חברים</p>
-        </div>
-
-        {/* My name input */}
-        <div className="w-full max-w-[280px] mb-3">
-          <input
-            type="text"
-            value={playerName}
-            onChange={(e) => setPlayerName(e.target.value.slice(0, 12))}
-            placeholder="השם שלך"
-            maxLength={12}
-            className="w-full text-center text-lg font-bold bg-tile border-2 border-gray-700 rounded-xl py-2 px-3 text-white placeholder-gray-600 focus:border-accent outline-none"
-          />
-        </div>
-
-        {/* Player list */}
-        <div className="w-full max-w-[280px] mb-4">
-          <p className="text-gray-400 text-sm mb-2">{players.length}/{maxPlayers} :שחקנים</p>
-          <div className="space-y-2">
-            {players.map((p, i) => {
-              const isMe = p.id === playerId
-              return (
-                <motion.div
-                  key={p.id}
-                  initial={{ x: 20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ delay: i * 0.1 }}
-                  className={`flex items-center justify-between px-4 py-2 rounded-xl border ${
-                    p.ready ? 'bg-success/10 border-success/40' : 'bg-tile border-gray-700/40'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`text-sm ${p.ready ? 'text-success' : 'text-gray-500'}`}>
-                      {p.ready ? '✓' : '○'}
-                    </span>
-                    <span className="text-white">{p.name}</span>
-                    {i === 0 && <span className="text-xs text-accent">👑</span>}
-                  </div>
-                  {isMe && (
-                    <button onClick={toggleReady}
-                      className={`text-xs px-3 py-1 rounded-full font-medium ${
-                        p.ready ? 'bg-success/20 text-success' : 'bg-gray-700 text-gray-300'
-                      }`}>
-                      {p.ready ? '!מוכן' : 'מוכן?'}
-                    </button>
-                  )}
-                </motion.div>
-              )
-            })}
-            {players.length < maxPlayers && (
-              <div className="flex items-center justify-center px-4 py-2 rounded-xl border border-dashed border-gray-700/40">
-                <span className="text-gray-600 text-sm animate-pulse">...ממתין לשחקנים</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Buttons */}
-        <div className="flex flex-col gap-3 w-full max-w-[280px]">
-          {isHost && (
-            <motion.button
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              whileTap={allReady ? { scale: 0.95 } : {}}
-              onClick={allReady ? startMatch : undefined}
-              className={`px-8 py-4 rounded-2xl text-xl font-bold shadow-lg ${
-                allReady
-                  ? 'bg-success text-white shadow-success/30'
-                  : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              {allReady ? '!התחל משחק' : '...ממתין שכולם יהיו מוכנים'}
-            </motion.button>
-          )}
-          {!isHost && !myReady && (
-            <p className="text-center text-gray-500 text-sm">לחץ &quot;?מוכן&quot; כשאתה מוכן</p>
-          )}
-          <button onClick={leaveGame} className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium">
-            יציאה
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  // Choose: create or join
   return (
     <div className="fixed inset-0 bg-bg flex flex-col items-center justify-center z-50 px-6">
-      <h2 className="text-3xl font-bold text-accent mb-2">{MODE_NAMES[gameMode] || 'מולטיפלייר'}</h2>
-      <p className="text-gray-400 mb-8">{maxPlayers} שחקנים</p>
+      <h2 className="text-2xl font-bold text-accent mb-1">חדר משחק</h2>
+      <p className="text-gray-400 text-sm mb-3">{MODE_NAMES[gameMode] || gameMode}</p>
 
-      {tab === 'choose' && (
-        <div className="flex flex-col gap-3 w-full max-w-[280px]">
-          <motion.button
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={async () => {
-              setTab('create')
-              await createRoom(gameMode, maxPlayers)
-            }}
-            className="px-6 py-4 rounded-2xl bg-accent text-white text-lg font-bold shadow-lg shadow-accent/20"
-          >
-            🏠 צור משחק
-          </motion.button>
-          <motion.button
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setTab('join')}
-            className="px-6 py-4 rounded-2xl bg-tile text-white text-lg font-bold border border-gray-700/40"
-          >
-            🔗 הצטרף למשחק
-          </motion.button>
-          <button onClick={leaveGame} className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium mt-2">
-            חזרה
-          </button>
-        </div>
-      )}
+      {/* Room code */}
+      <div className="mb-4 text-center">
+        <p className="text-gray-400 text-sm mb-1">:קוד חדר</p>
+        <div className="text-5xl font-bold text-white tracking-[0.3em] font-mono">{roomCode}</div>
+        <p className="text-gray-500 text-xs mt-1">שתפו את הקוד עם חברים</p>
+      </div>
 
-      {tab === 'join' && (
-        <div className="flex flex-col gap-4 w-full max-w-[280px] items-center">
-          <p className="text-gray-400 text-sm">הכנס קוד חדר:</p>
-          <input
-            type="tel"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={4}
-            value={joinCode}
-            onChange={(e) => { setJoinCode(e.target.value.replace(/\D/g, '')); setJoinError('') }}
-            placeholder="0000"
-            className="text-center text-4xl font-bold font-mono tracking-[0.4em] bg-tile border-2 border-gray-700 rounded-xl py-3 w-full text-white placeholder-gray-600 focus:border-accent outline-none"
-            autoFocus
-          />
-          {joinError && <p className="text-error text-sm">{joinError}</p>}
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            disabled={joinCode.length !== 4}
-            onClick={async () => {
-              const res = await joinRoom(joinCode)
-              if (!res.ok) setJoinError(res.error || 'שגיאה')
-            }}
-            className={`px-8 py-3 rounded-2xl text-white text-lg font-bold w-full ${joinCode.length === 6 ? 'bg-accent' : 'bg-gray-700 text-gray-500'}`}
-          >
-            הצטרף
-          </motion.button>
-          <button onClick={() => { setTab('choose'); setJoinCode(''); setJoinError('') }}
-            className="text-gray-400 text-sm">← חזרה</button>
+      {/* My name input */}
+      <div className="w-full max-w-[280px] mb-3">
+        <input
+          type="text"
+          value={playerName}
+          onChange={(e) => setPlayerName(e.target.value.slice(0, 12))}
+          placeholder="השם שלך"
+          maxLength={12}
+          className="w-full text-center text-lg font-bold bg-tile border-2 border-gray-700 rounded-xl py-2 px-3 text-white placeholder-gray-600 focus:border-accent outline-none"
+        />
+      </div>
+
+      {/* Player list */}
+      <div className="w-full max-w-[280px] mb-4">
+        <p className="text-gray-400 text-sm mb-2">{players.length}/{maxPlayers} :שחקנים</p>
+        <div className="space-y-2">
+          {players.map((p, i) => {
+            const isMe = p.id === playerId
+            return (
+              <motion.div
+                key={p.id}
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: i * 0.1 }}
+                className={`flex items-center justify-between px-4 py-2 rounded-xl border ${
+                  p.ready ? 'bg-success/10 border-success/40' : 'bg-tile border-gray-700/40'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm ${p.ready ? 'text-success' : 'text-gray-500'}`}>
+                    {p.ready ? '✓' : '○'}
+                  </span>
+                  <span className="text-white">{p.name}</span>
+                  {i === 0 && <span className="text-xs text-accent">👑</span>}
+                </div>
+                {isMe && (
+                  <button onClick={toggleReady}
+                    className={`text-xs px-3 py-1 rounded-full font-medium ${
+                      p.ready ? 'bg-success/20 text-success' : 'bg-gray-700 text-gray-300'
+                    }`}>
+                    {p.ready ? '!מוכן' : 'מוכן?'}
+                  </button>
+                )}
+              </motion.div>
+            )
+          })}
+          {players.length < maxPlayers && (
+            <div className="flex items-center justify-center px-4 py-2 rounded-xl border border-dashed border-gray-700/40">
+              <span className="text-gray-600 text-sm animate-pulse">...ממתין לשחקנים</span>
+            </div>
+          )}
         </div>
-      )}
+      </div>
+
+      {/* Buttons */}
+      <div className="flex flex-col gap-3 w-full max-w-[280px]">
+        {isHost && (
+          <motion.button
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            whileTap={allReady ? { scale: 0.95 } : {}}
+            onClick={allReady ? startMatch : undefined}
+            className={`px-8 py-4 rounded-2xl text-xl font-bold shadow-lg ${
+              allReady
+                ? 'bg-success text-white shadow-success/30'
+                : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            {allReady ? '!התחל משחק' : '...ממתין שכולם יהיו מוכנים'}
+          </motion.button>
+        )}
+        {!isHost && !myReady && (
+          <p className="text-center text-gray-500 text-sm">לחץ &quot;?מוכן&quot; כשאתה מוכן</p>
+        )}
+        <button onClick={leaveGame} className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium">
+          יציאה
+        </button>
+      </div>
     </div>
   )
 }
@@ -1572,7 +1498,7 @@ function MultiplayerGame() {
 
   return (
     <>
-      {(status === 'choose' || status === 'waiting' || status === 'lobby' || status === 'creating' || status === 'joining') && (
+      {(status === 'waiting' || status === 'lobby' || status === 'creating' || status === 'joining') && (
         <MultiplayerLobby />
       )}
       <MultiplayerCountdown />
@@ -2058,8 +1984,11 @@ function CustomPackGame() {
 // ─── Home Screen ───
 function HomeScreen() {
   const [isMulti, setIsMulti] = useState(false)
+  const [multiStep, setMultiStep] = useState<'menu' | 'create_mode' | 'join'>('menu')
   const [playerCount, setPlayerCount] = useState(2)
-  const [levelCount, setLevelCount] = useState(5) // for grid/shapes multiplayer
+  const [levelCount, setLevelCount] = useState(5)
+  const [joinCode, setJoinCode] = useState('')
+  const [joinError, setJoinError] = useState('')
   const startGame = useGameStore((s) => s.startGame)
   const bestScoreQuick = useGameStore((s) => s.bestScoreQuick)
   const bestStageEndless = useGameStore((s) => s.bestStageEndless)
@@ -2068,6 +1997,7 @@ function HomeScreen() {
   const bestStageShapes = useGridStore((s) => s.bestStageShapes)
   const startGrid = useGridStore((s) => s.startGrid)
   const createRoom = useMultiplayerStore((s) => s.createRoom)
+  const joinRoom = useMultiplayerStore((s) => s.joinRoom)
 
   const MODE_LABELS: Record<string, string> = {
     quick: 'משחק מהיר',
@@ -2088,21 +2018,26 @@ function HomeScreen() {
 
   const openDesigner = useDesignerStore((s) => s.openHub)
 
-  const handleModeClick = (key: string) => {
-    if (key === 'designer') {
-      openDesigner()
-      return
-    }
-    if (!isMulti) {
-      // Single player
-      if (key === 'grid') startGrid('normal')
-      else if (key === 'shapes') startGrid('shapes')
-      else startGame(key as GameMode)
-    } else {
-      // Multiplayer — go to create/join flow for this mode
-      const levels = (key === 'grid' || key === 'shapes') ? levelCount : 0
-      useMultiplayerStore.setState({ status: 'choose', gameMode: key as any, maxPlayers: playerCount, maxLevels: levels })
-    }
+  // Single player mode click
+  const handleSingleModeClick = (key: string) => {
+    if (key === 'designer') { openDesigner(); return }
+    if (key === 'grid') startGrid('normal')
+    else if (key === 'shapes') startGrid('shapes')
+    else startGame(key as GameMode)
+  }
+
+  // Multiplayer: creator picks mode → creates room
+  const handleCreateModeClick = async (key: string) => {
+    const levels = (key === 'grid' || key === 'shapes') ? levelCount : 0
+    useMultiplayerStore.setState({ status: 'creating', gameMode: key as any, maxPlayers: playerCount, maxLevels: levels })
+    await createRoom(key as any, playerCount, levels)
+  }
+
+  // Multiplayer: joiner submits code
+  const handleJoin = async () => {
+    if (joinCode.length !== 4) return
+    const res = await joinRoom(joinCode)
+    if (!res.ok) setJoinError(res.error || 'שגיאה')
   }
 
   return (
@@ -2128,73 +2063,156 @@ function HomeScreen() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="flex items-center gap-3 mb-4"
+        className="mb-5"
       >
         <div className="flex rounded-full bg-tile border border-gray-700/50 p-1">
           <button
-            onClick={() => setIsMulti(false)}
+            onClick={() => { setIsMulti(false); setMultiStep('menu') }}
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${!isMulti ? 'bg-accent text-white' : 'text-gray-400'}`}
           >
             יחיד
           </button>
           <button
-            onClick={() => setIsMulti(true)}
+            onClick={() => { setIsMulti(true); setMultiStep('menu') }}
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${isMulti ? 'bg-accent text-white' : 'text-gray-400'}`}
           >
             מולטי 👥
           </button>
         </div>
-
-        {/* Multi mode options */}
-        <AnimatePresence>
-          {isMulti && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="flex items-center gap-2"
-            >
-              <select
-                value={playerCount}
-                onChange={(e) => setPlayerCount(Number(e.target.value))}
-                className="bg-tile border border-gray-700/50 text-white text-sm rounded-full px-3 py-1.5 outline-none appearance-none cursor-pointer"
-              >
-                {[2, 3, 4, 5, 6].map((n) => (
-                  <option key={n} value={n}>{n} שחקנים</option>
-                ))}
-              </select>
-              <select
-                value={levelCount}
-                onChange={(e) => setLevelCount(Number(e.target.value))}
-                className="bg-tile border border-gray-700/50 text-white text-sm rounded-full px-3 py-1.5 outline-none appearance-none cursor-pointer"
-              >
-                {[3, 5, 7, 10, 15, 0].map((n) => (
-                  <option key={n} value={n}>{n === 0 ? '♾ אינסוף' : `${n} שלבים`}</option>
-                ))}
-              </select>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </motion.div>
 
-      {/* Mode buttons */}
-      <div className="flex flex-col gap-3 w-full max-w-[280px]">
-        {modes.map((m) => (
+      {/* ─── SINGLE PLAYER: show mode buttons ─── */}
+      {!isMulti && (
+        <div className="flex flex-col gap-3 w-full max-w-[280px]">
+          {modes.map((m) => (
+            <motion.button
+              key={m.key}
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: m.delay }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleSingleModeClick(m.key)}
+              className="px-6 py-4 rounded-2xl bg-accent/90 hover:bg-accent text-white text-lg font-bold
+                shadow-lg shadow-accent/20 flex items-center justify-between"
+            >
+              <span>{m.label}</span>
+              <span className="text-sm font-normal text-white/60">{m.best}</span>
+            </motion.button>
+          ))}
+        </div>
+      )}
+
+      {/* ─── MULTIPLAYER: menu step (Create / Join / Settings) ─── */}
+      {isMulti && multiStep === 'menu' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col gap-3 w-full max-w-[280px]"
+        >
           <motion.button
-            key={m.key}
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: m.delay }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => handleModeClick(m.key)}
-            className="px-6 py-4 rounded-2xl bg-accent/90 hover:bg-accent text-white text-lg font-bold
-              shadow-lg shadow-accent/20 flex items-center justify-between"
+            onClick={() => setMultiStep('create_mode')}
+            className="px-6 py-4 rounded-2xl bg-accent text-white text-lg font-bold shadow-lg shadow-accent/20"
           >
-            <span>{m.label}</span>
-            <span className="text-sm font-normal text-white/60">{isMulti ? `${playerCount}👥` : m.best}</span>
+            🏠 צור משחק
           </motion.button>
-        ))}
-      </div>
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setMultiStep('join')}
+            className="px-6 py-4 rounded-2xl bg-tile text-white text-lg font-bold border border-gray-700/40"
+          >
+            🔗 הצטרף למשחק
+          </motion.button>
+
+          {/* Player count */}
+          <div className="flex items-center justify-between bg-tile rounded-xl px-4 py-3 border border-gray-700/30">
+            <span className="text-gray-300 text-sm">מספר שחקנים</span>
+            <select
+              value={playerCount}
+              onChange={(e) => setPlayerCount(Number(e.target.value))}
+              className="bg-transparent text-white text-sm font-bold outline-none cursor-pointer"
+            >
+              {[2, 3, 4, 5, 6].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Level count */}
+          <div className="flex items-center justify-between bg-tile rounded-xl px-4 py-3 border border-gray-700/30">
+            <span className="text-gray-300 text-sm">מספר שלבים</span>
+            <select
+              value={levelCount}
+              onChange={(e) => setLevelCount(Number(e.target.value))}
+              className="bg-transparent text-white text-sm font-bold outline-none cursor-pointer"
+            >
+              {[3, 5, 7, 10, 15, 0].map((n) => (
+                <option key={n} value={n}>{n === 0 ? '♾ אינסוף' : String(n)}</option>
+              ))}
+            </select>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ─── MULTIPLAYER: creator picks game mode ─── */}
+      {isMulti && multiStep === 'create_mode' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col gap-3 w-full max-w-[280px]"
+        >
+          <p className="text-gray-400 text-center mb-2">:בחר מצב משחק</p>
+          {modes.filter(m => m.key !== 'designer').map((m) => (
+            <motion.button
+              key={m.key}
+              initial={{ y: 15, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: m.delay - 0.2 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleCreateModeClick(m.key)}
+              className="px-6 py-4 rounded-2xl bg-accent/90 hover:bg-accent text-white text-lg font-bold
+                shadow-lg shadow-accent/20 flex items-center justify-between"
+            >
+              <span>{m.label}</span>
+              <span className="text-sm font-normal text-white/60">{playerCount}👥</span>
+            </motion.button>
+          ))}
+          <button onClick={() => setMultiStep('menu')} className="text-gray-400 text-sm mt-2">← חזרה</button>
+        </motion.div>
+      )}
+
+      {/* ─── MULTIPLAYER: joiner enters code ─── */}
+      {isMulti && multiStep === 'join' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col gap-4 w-full max-w-[280px] items-center"
+        >
+          <p className="text-gray-400 text-sm">:הכנס קוד חדר</p>
+          <input
+            type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={4}
+            value={joinCode}
+            onChange={(e) => { setJoinCode(e.target.value.replace(/\D/g, '')); setJoinError('') }}
+            placeholder="0000"
+            className="text-center text-4xl font-bold font-mono tracking-[0.4em] bg-tile border-2 border-gray-700 rounded-xl py-3 w-full text-white placeholder-gray-600 focus:border-accent outline-none"
+            autoFocus
+          />
+          {joinError && <p className="text-error text-sm">{joinError}</p>}
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            disabled={joinCode.length !== 4}
+            onClick={handleJoin}
+            className={`px-8 py-3 rounded-2xl text-white text-lg font-bold w-full ${joinCode.length === 4 ? 'bg-accent shadow-lg shadow-accent/20' : 'bg-gray-700 text-gray-500'}`}
+          >
+            הצטרף
+          </motion.button>
+          <button onClick={() => { setMultiStep('menu'); setJoinCode(''); setJoinError('') }}
+            className="text-gray-400 text-sm">← חזרה</button>
+        </motion.div>
+      )}
     </div>
   )
 }

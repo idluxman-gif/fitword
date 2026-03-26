@@ -6,7 +6,6 @@ import type { Unsubscribe } from 'firebase/database'
 
 export type MultiplayerStatus =
   | 'idle'
-  | 'choose'
   | 'creating'
   | 'waiting'
   | 'joining'
@@ -259,20 +258,20 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     const snapshot = await fbGet(roomRef)
 
     if (!snapshot.exists()) {
-      set({ status: 'choose' })
+      set({ status: 'idle' })
       return { ok: false, error: 'חדר לא נמצא' }
     }
 
     const room = snapshot.val()
     if (room.status !== 'waiting') {
-      set({ status: 'choose' })
+      set({ status: 'idle' })
       return { ok: false, error: 'המשחק כבר התחיל' }
     }
 
     const existingPlayers = room.players ? Object.keys(room.players).length : 0
     const roomMax = room.maxPlayers || 6
     if (existingPlayers >= roomMax) {
-      set({ status: 'choose' })
+      set({ status: 'idle' })
       return { ok: false, error: 'החדר מלא' }
     }
 
