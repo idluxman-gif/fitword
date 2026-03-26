@@ -226,6 +226,26 @@ function getShapeDifficulty(stage: number): { targetCells: number; maxSize: numb
   return { targetCells: Math.min(18 + stage, 45), maxSize: 9 }
 }
 
+/**
+ * Generate a shape for a given stage. Exported for multiplayer shape sharing.
+ * Returns the raw boolean[][] (true = active cell) plus dimensions.
+ */
+export function generateShapeForStage(stage: number): { shape: boolean[][], rows: number, cols: number } {
+  const { targetCells, maxSize } = getShapeDifficulty(stage)
+  const raw = generateRandomShape(targetCells, maxSize)
+  const sanitized = sanitizeShape(raw)
+  return { shape: sanitized, rows: sanitized.length, cols: sanitized[0]?.length || 1 }
+}
+
+/**
+ * Generate a grid (rectangle) for a given stage. Exported for multiplayer grid sharing.
+ */
+export function generateGridForStage(stage: number): { shape: boolean[][], rows: number, cols: number } {
+  const { rows, cols } = getGridSize(stage)
+  const shape = Array.from({ length: rows }, () => Array(cols).fill(true))
+  return { shape, rows, cols }
+}
+
 function pickShape(stage: number): { grid: GridCell[][], rows: number, cols: number } {
   const { targetCells, maxSize } = getShapeDifficulty(stage)
   const shape = generateRandomShape(targetCells, maxSize)
@@ -268,9 +288,11 @@ interface GridState {
   initBest: () => void
   startGrid: (difficulty?: GridDifficulty) => void
   startGridWithLetters: (difficulty: GridDifficulty, letters: string[], stage: number) => void
+  startGridWithShape: (shape: boolean[][], letters: string[], stage: number, difficulty: GridDifficulty) => void
   startFromCustomLevel: (shape: boolean[][], rows: number, cols: number, timer: number, stage: number) => void
   nextGridStage: () => void
   nextGridStageWithLetters: (letters: string[]) => void
+  nextGridStageWithShape: (shape: boolean[][], letters: string[]) => void
   selectCell: (row: number, col: number) => void
   addLetterByIndex: (index: number) => void
   clearWord: () => void
@@ -418,6 +440,42 @@ export const useGridStore = create<GridState>((set, get) => ({
         feedback: null, stage,
       })
     }
+  },
+
+  // Start with a pre-generated shape (for multiplayer — all players get same board)
+  startGridWithShape: (shape: boolean[][], letters: string[], stage: number, difficulty: GridDifficulty) => {
+    const rows = shape.length
+    const cols = shape[0]?.length || 1
+    const grid: GridCell[][] = shape.map((row) =>
+      row.map((active) => ({ char: null, filled: !active, active, blocked: false }))
+    )
+    markBlockedCells(grid)
+    set({
+      difficulty, gridRows: rows, gridCols: cols, grid,
+      placedWords: [], selectedCell: null, direction: 'right' as Direction,
+      letters, currentWord: '', usedTileIndices: [],
+      score: 0, timeLeft: 120, status: 'playing' as GridStatus,
+      feedback: null, stage,
+    })
+  },
+
+  // Next stage with pre-generated shape (multiplayer)
+  nextGridStageWithShape: (shape: boolean[][], letters: string[]) => {
+    const { stage, score, difficulty } = get()
+    const newStage = stage + 1
+    const rows = shape.length
+    const cols = shape[0]?.length || 1
+    const grid: GridCell[][] = shape.map((row) =>
+      row.map((active) => ({ char: null, filled: !active, active, blocked: false }))
+    )
+    markBlockedCells(grid)
+    set({
+      difficulty, gridRows: rows, gridCols: cols, grid,
+      placedWords: [], selectedCell: null, direction: 'right' as Direction,
+      letters, currentWord: '', usedTileIndices: [],
+      score: score + 50, timeLeft: 120, status: 'playing' as GridStatus,
+      feedback: null, stage: newStage,
+    })
   },
 
   startFromCustomLevel: (shape: boolean[][], rows: number, cols: number, timer: number, stage: number = 1) => {

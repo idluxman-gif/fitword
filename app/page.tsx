@@ -1254,22 +1254,30 @@ function MultiplayerResults() {
 
   const MEDALS = ['🥇', '🥈', '🥉']
 
-  if (status !== 'finished') {
-    if (autoTriggeredRef.current) { autoTriggeredRef.current = false; setPhase('waiting') }
-    return null
-  }
+  const isFinished = status === 'finished'
+  const allFinished = isFinished && players.every((p) => p.finished || p.id === playerId)
+  const myLen = isFinished ? filledWords.reduce((s, w) => s + w.length, 0) : 0
 
-  const allFinished = players.every((p) => p.finished || p.id === playerId)
-  const myLen = filledWords.reduce((s, w) => s + w.length, 0)
+  const allPlayers = isFinished
+    ? players.map((p) =>
+        p.id === playerId ? { ...p, score, filledLength: myLen, finished: true } : p
+      ).sort((a, b) => b.score - a.score)
+    : []
 
-  const allPlayers = players.map((p) =>
-    p.id === playerId ? { ...p, score, filledLength: myLen, finished: true } : p
-  ).sort((a, b) => b.score - a.score)
+  const winner = allPlayers[0] || null
 
-  const winner = allPlayers[0]
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  // Auto-advance: show winner → scoreboard with countdown → next round
+  // ALL hooks must be called before any conditional return
   useEffect(() => {
+    if (!isFinished) {
+      // Reset when leaving finished state
+      if (autoTriggeredRef.current) {
+        autoTriggeredRef.current = false
+        setPhase('waiting')
+        setCountdown(null)
+      }
+      return
+    }
     if (!allFinished || autoTriggeredRef.current) return
     autoTriggeredRef.current = true
 
@@ -1286,7 +1294,9 @@ function MultiplayerResults() {
     }, 5000)
 
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4) }
-  }, [allFinished, isHost, nextRound])
+  }, [isFinished, allFinished, isHost, nextRound])
+
+  if (!isFinished) return null
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -1384,30 +1394,42 @@ function MultiplayerGridBridge() {
   const gridStatus = useGridStore((s) => s.status)
   const gridScore = useGridStore((s) => s.score)
   const gridTick = useGridStore((s) => s.tick)
+  const startGridWithShape = useGridStore((s) => s.startGridWithShape)
   const startGridWithLetters = useGridStore((s) => s.startGridWithLetters)
   const finishRound = useMultiplayerStore((s) => s.finishRound)
   const broadcastState = useMultiplayerStore((s) => s.broadcastState)
+  const mpShapeData = useMultiplayerStore((s) => s.shapeData)
   const initRef = useRef(false)
   const stageRef = useRef(0)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Initialize grid when multiplayer starts playing
+  // Initialize grid when multiplayer starts playing — use shared shape from Firebase
   useEffect(() => {
     if (mpStatus === 'playing' && mpLetters.length > 0 && stageRef.current !== mpStage) {
       const isNewStage = stageRef.current > 0 && mpStage > stageRef.current
       stageRef.current = mpStage
       const difficulty = mpGameMode === 'shapes' ? 'shapes' : 'normal'
+
       if (isNewStage) {
-        // Carry score: sync grid score to multiplayer, then start next stage
+        // Carry score: sync grid score to multiplayer, then start next stage with shared shape
         const currentGridScore = useGridStore.getState().score
         useMultiplayerStore.setState({ score: useMultiplayerStore.getState().score + currentGridScore })
-        useGridStore.getState().nextGridStageWithLetters(mpLetters)
+        if (mpShapeData) {
+          useGridStore.getState().nextGridStageWithShape(mpShapeData, mpLetters)
+        } else {
+          useGridStore.getState().nextGridStageWithLetters(mpLetters)
+        }
       } else {
-        startGridWithLetters(difficulty, mpLetters, mpStage)
+        // First stage — use shared shape data from Firebase
+        if (mpShapeData) {
+          startGridWithShape(mpShapeData, mpLetters, mpStage, difficulty as any)
+        } else {
+          startGridWithLetters(difficulty, mpLetters, mpStage)
+        }
       }
       initRef.current = true
     }
-  }, [mpStatus, mpLetters, mpStage, mpGameMode, startGridWithLetters])
+  }, [mpStatus, mpLetters, mpStage, mpGameMode, mpShapeData, startGridWithShape, startGridWithLetters])
 
   // When multiplayer round ends (another player finished), stop the grid too
   useEffect(() => {

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { db, ref, fbSet, fbGet, onValue, remove, update, runTransaction } from './firebase'
 import { pickWeightedLetters, scoreWord } from './game'
 import { isValidWord } from './dictionary'
+import { generateShapeForStage, generateGridForStage } from './grid-store'
 import type { Unsubscribe } from 'firebase/database'
 
 export type MultiplayerStatus =
@@ -35,6 +36,7 @@ interface MultiplayerState {
   gameMode: MPGameMode
   maxPlayers: number
   maxLevels: number  // for grid/shapes — how many levels to play (0 = unlimited)
+  shapeData: boolean[][] | null  // shared shape for grid/shapes multiplayer
   players: PlayerState[]
   letters: string[]
   targetLength: number
@@ -88,6 +90,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   gameMode: 'quick',
   maxPlayers: 6,
   maxLevels: 0,
+  shapeData: null,
   players: [],
   letters: [],
   targetLength: 15,
@@ -137,6 +140,16 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     const roomRef = ref(db, `rooms/${code}`)
     const playerData: PlayerState = { id: playerId, name: 'שחקן 1', score: 0, filledLength: 0, finished: false, perfectFit: false, ready: false }
 
+    // Generate shape for grid/shapes modes so all players get the same board
+    let shapeData: boolean[][] | null = null
+    if (mode === 'shapes') {
+      const { shape } = generateShapeForStage(1)
+      shapeData = shape
+    } else if (mode === 'grid') {
+      const { shape } = generateGridForStage(1)
+      shapeData = shape
+    }
+
     await fbSet(roomRef, {
       code,
       hostId: playerId,
@@ -145,6 +158,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       maxLevels,
       letters,
       targetLength,
+      shapeData: shapeData || null,
       status: 'waiting',
       players: { [playerId]: playerData },
       countdown: null,
@@ -203,11 +217,12 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     const unsub5 = onValue(nextRoundRef, (snapshot) => {
       const val = snapshot.val()
       if (val && val.stage > get().stage) {
-        // Store new round data, show countdown
+        // Store new round data + shape, show countdown
         set({
           letters: val.letters,
           targetLength: val.targetLength || 15,
           stage: val.stage,
+          shapeData: val.shapeData || null,
           filledWords: [],
           currentWord: '',
           usedTileIndices: [],
@@ -234,6 +249,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       gameMode: mode,
       maxPlayers,
       maxLevels,
+      shapeData,
       letters,
       targetLength,
       stage: 1,
@@ -333,6 +349,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           letters: val.letters,
           targetLength: val.targetLength || 15,
           stage: val.stage,
+          shapeData: val.shapeData || null,
           filledWords: [],
           currentWord: '',
           usedTileIndices: [],
@@ -359,6 +376,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       gameMode: room.gameMode || 'quick',
       maxPlayers: roomMax,
       maxLevels: room.maxLevels || 0,
+      shapeData: room.shapeData || null,
       letters: room.letters,
       targetLength: room.targetLength || 15,
       stage: 1,
@@ -517,16 +535,28 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
   // Called by host to start next round with new letters for everyone
   nextRound: () => {
-    const { roomCode, isHost, stage } = get()
+    const { roomCode, isHost, stage, gameMode } = get()
     if (!db || !roomCode || !isHost) return
     const newLetters = pickWeightedLetters(10)
     const newStage = stage + 1
+
+    // Generate shape data for grid/shapes modes
+    let newShapeData: boolean[][] | null = null
+    if (gameMode === 'shapes') {
+      const { shape } = generateShapeForStage(newStage)
+      newShapeData = shape
+    } else if (gameMode === 'grid') {
+      const { shape } = generateGridForStage(newStage)
+      newShapeData = shape
+    }
+
     // Clear roundEnd and write nextRound data — all players listen
     remove(ref(db, `rooms/${roomCode}/roundEnd`))
     fbSet(ref(db, `rooms/${roomCode}/nextRound`), {
       letters: newLetters,
       targetLength: 15,
       stage: newStage,
+      shapeData: newShapeData || null,
     })
   },
 
@@ -556,6 +586,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       gameMode: 'quick',
       maxPlayers: 6,
   maxLevels: 0,
+  shapeData: null,
       stage: 1,
       players: [],
       letters: [],
