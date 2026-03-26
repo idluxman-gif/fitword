@@ -1248,25 +1248,59 @@ function MultiplayerResults() {
   const isHost = useMultiplayerStore((s) => s.isHost)
   const nextRound = useMultiplayerStore((s) => s.nextRound)
   const leaveGame = useMultiplayerStore((s) => s.leaveGame)
+  const [autoCountdown, setAutoCountdown] = useState<number | null>(null)
+  const autoTriggeredRef = useRef(false)
 
-  if (status !== 'finished') return null
+  if (status !== 'finished') {
+    // Reset when leaving finished state
+    if (autoTriggeredRef.current) autoTriggeredRef.current = false
+    return null
+  }
 
-  // Check if all players finished
   const allFinished = players.every((p) => p.finished || p.id === playerId)
   const myLen = filledWords.reduce((s, w) => s + w.length, 0)
   const myPerfectFit = myLen === targetLength
 
-  // Update own state in player list for display
   const allPlayers = players.map((p) =>
     p.id === playerId ? { ...p, score, filledLength: myLen, finished: true, perfectFit: myPerfectFit } : p
   ).sort((a, b) => b.score - a.score)
 
   const winner = allPlayers[0]
-  const isWinner = winner?.id === playerId
+
+  // Auto-advance: when all finished, show results for 2s, then host triggers next round
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (!allFinished || autoTriggeredRef.current) return
+    autoTriggeredRef.current = true
+
+    // Show results for 2 seconds, then countdown 3-2-1, then host triggers next round
+    const t1 = setTimeout(() => setAutoCountdown(3), 2000)
+    const t2 = setTimeout(() => setAutoCountdown(2), 3000)
+    const t3 = setTimeout(() => setAutoCountdown(1), 4000)
+    const t4 = setTimeout(() => {
+      setAutoCountdown(null)
+      if (isHost) nextRound()
+    }, 5000)
+
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4) }
+  }, [allFinished, isHost, nextRound])
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
       className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6">
+
+      {/* Auto countdown overlay */}
+      {autoCountdown !== null && (
+        <motion.div
+          key={autoCountdown}
+          initial={{ scale: 2, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.5, opacity: 0 }}
+          className="absolute text-8xl font-bold text-accent z-10"
+        >
+          {autoCountdown}
+        </motion.div>
+      )}
 
       {!allFinished && (
         <div className="text-center mb-6">
@@ -1275,47 +1309,47 @@ function MultiplayerResults() {
         </div>
       )}
 
-      <h2 className="text-2xl font-bold text-accent mb-4">{allFinished ? '!תוצאות' : 'הניקוד שלך'}</h2>
+      {allFinished && autoCountdown === null && (
+        <>
+          <div className="text-4xl mb-2">👑</div>
+          <h2 className="text-2xl font-bold text-accent mb-1">!{winner?.name} מוביל</h2>
+          <p className="text-gray-400 text-sm mb-4">שלב {stage} הושלם</p>
+        </>
+      )}
+
+      {!allFinished && <h2 className="text-2xl font-bold text-accent mb-4">הניקוד שלך</h2>}
 
       {/* Scoreboard */}
-      <div className="w-full max-w-[300px] space-y-2 mb-6">
-        {allPlayers.map((p, i) => (
-          <motion.div key={p.id}
-            initial={{ x: 20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: i * 0.1 }}
-            className={`flex items-center justify-between px-4 py-3 rounded-xl ${
-              p.id === playerId ? 'bg-accent/20 border border-accent/50' : 'bg-tile border border-gray-700/40'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-lg">{i === 0 && allFinished ? '👑' : `${i + 1}.`}</span>
-              <span className="text-white font-medium">{p.name}</span>
-              {p.id === playerId && <span className="text-xs text-accent">(אתה)</span>}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-white font-bold">{p.score}</span>
-              {p.perfectFit && <span className="text-success text-xs">Perfect</span>}
-            </div>
-          </motion.div>
-        ))}
-      </div>
+      {autoCountdown === null && (
+        <div className="w-full max-w-[300px] space-y-2 mb-6">
+          {allPlayers.map((p, i) => (
+            <motion.div key={p.id}
+              initial={{ x: 20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: i * 0.1 }}
+              className={`flex items-center justify-between px-4 py-3 rounded-xl ${
+                p.id === playerId ? 'bg-accent/20 border border-accent/50' : 'bg-tile border border-gray-700/40'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{i === 0 && allFinished ? '👑' : `${i + 1}.`}</span>
+                <span className="text-white font-medium">{p.name}</span>
+                {p.id === playerId && <span className="text-xs text-accent">(אתה)</span>}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-white font-bold">{p.score}</span>
+                {p.perfectFit && <span className="text-success text-xs">Perfect</span>}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
-      <div className="flex flex-col gap-3 w-full max-w-[250px]">
-        {isHost && (
-          <button onClick={nextRound}
-            className="px-8 py-4 rounded-2xl bg-success text-white text-xl font-bold shadow-lg shadow-success/30">
-            !שלב {stage + 1} — המשך
-          </button>
-        )}
-        {!isHost && (
-          <p className="text-center text-gray-400 text-sm animate-pulse">...ממתין למנהל להמשיך</p>
-        )}
-        <button onClick={leaveGame}
-          className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium">
-          יציאה
-        </button>
-      </div>
+      {/* Leave button always visible */}
+      <button onClick={leaveGame}
+        className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium">
+        יציאה
+      </button>
     </motion.div>
   )
 }
