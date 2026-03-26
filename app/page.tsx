@@ -1398,9 +1398,17 @@ function MultiplayerGridBridge() {
   // Initialize grid when multiplayer starts playing
   useEffect(() => {
     if (mpStatus === 'playing' && mpLetters.length > 0 && stageRef.current !== mpStage) {
+      const isNewStage = stageRef.current > 0 && mpStage > stageRef.current
       stageRef.current = mpStage
       const difficulty = mpGameMode === 'shapes' ? 'shapes' : 'normal'
-      startGridWithLetters(difficulty, mpLetters, mpStage)
+      if (isNewStage) {
+        // Carry score: sync grid score to multiplayer, then start next stage
+        const currentGridScore = useGridStore.getState().score
+        useMultiplayerStore.setState({ score: useMultiplayerStore.getState().score + currentGridScore })
+        useGridStore.getState().nextGridStageWithLetters(mpLetters)
+      } else {
+        startGridWithLetters(difficulty, mpLetters, mpStage)
+      }
       initRef.current = true
     }
   }, [mpStatus, mpLetters, mpStage, mpGameMode, startGridWithLetters])
@@ -2051,6 +2059,7 @@ function CustomPackGame() {
 function HomeScreen() {
   const [isMulti, setIsMulti] = useState(false)
   const [playerCount, setPlayerCount] = useState(2)
+  const [levelCount, setLevelCount] = useState(5) // for grid/shapes multiplayer
   const startGame = useGameStore((s) => s.startGame)
   const bestScoreQuick = useGameStore((s) => s.bestScoreQuick)
   const bestStageEndless = useGameStore((s) => s.bestStageEndless)
@@ -2091,7 +2100,8 @@ function HomeScreen() {
       else startGame(key as GameMode)
     } else {
       // Multiplayer — go to create/join flow for this mode
-      useMultiplayerStore.setState({ status: 'choose', gameMode: key as any, maxPlayers: playerCount })
+      const levels = (key === 'grid' || key === 'shapes') ? levelCount : 0
+      useMultiplayerStore.setState({ status: 'choose', gameMode: key as any, maxPlayers: playerCount, maxLevels: levels })
     }
   }
 
@@ -2135,21 +2145,34 @@ function HomeScreen() {
           </button>
         </div>
 
-        {/* Player count dropdown — only in multi mode */}
+        {/* Multi mode options */}
         <AnimatePresence>
           {isMulti && (
-            <motion.select
-              initial={{ opacity: 0, width: 0 }}
-              animate={{ opacity: 1, width: 'auto' }}
-              exit={{ opacity: 0, width: 0 }}
-              value={playerCount}
-              onChange={(e) => setPlayerCount(Number(e.target.value))}
-              className="bg-tile border border-gray-700/50 text-white text-sm rounded-full px-3 py-1.5 outline-none appearance-none cursor-pointer"
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex items-center gap-2"
             >
-              {[2, 3, 4, 5, 6].map((n) => (
-                <option key={n} value={n}>{n} שחקנים</option>
-              ))}
-            </motion.select>
+              <select
+                value={playerCount}
+                onChange={(e) => setPlayerCount(Number(e.target.value))}
+                className="bg-tile border border-gray-700/50 text-white text-sm rounded-full px-3 py-1.5 outline-none appearance-none cursor-pointer"
+              >
+                {[2, 3, 4, 5, 6].map((n) => (
+                  <option key={n} value={n}>{n} שחקנים</option>
+                ))}
+              </select>
+              <select
+                value={levelCount}
+                onChange={(e) => setLevelCount(Number(e.target.value))}
+                className="bg-tile border border-gray-700/50 text-white text-sm rounded-full px-3 py-1.5 outline-none appearance-none cursor-pointer"
+              >
+                {[3, 5, 7, 10, 15, 0].map((n) => (
+                  <option key={n} value={n}>{n === 0 ? '♾ אינסוף' : `${n} שלבים`}</option>
+                ))}
+              </select>
+            </motion.div>
           )}
         </AnimatePresence>
       </motion.div>
@@ -2223,9 +2246,14 @@ function useBackButton() {
   const handleConfirmLeave = () => {
     setShowBackLeave(false)
     wasPlayingRef.current = false
-    if (useMultiplayerStore.getState().status !== 'idle') {
+    // Check all stores — multiplayer first since it may wrap grid/row modes
+    const mpState = useMultiplayerStore.getState().status
+    const gridState = useGridStore.getState().status
+    if (mpState !== 'idle') {
       leaveGame()
-    } else if (useGridStore.getState().status !== 'idle') {
+      // Also reset grid store if it was active under multiplayer
+      if (gridState !== 'idle') gridGoHome()
+    } else if (gridState !== 'idle') {
       gridGoHome()
     } else {
       goHome()

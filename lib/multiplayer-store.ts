@@ -35,6 +35,7 @@ interface MultiplayerState {
   status: MultiplayerStatus
   gameMode: MPGameMode
   maxPlayers: number
+  maxLevels: number  // for grid/shapes — how many levels to play (0 = unlimited)
   players: PlayerState[]
   letters: string[]
   targetLength: number
@@ -52,7 +53,7 @@ interface MultiplayerState {
 
   setPlayerName: (name: string) => void
   toggleReady: () => void
-  createRoom: (mode: MPGameMode, maxPlayers: number) => Promise<string | null>
+  createRoom: (mode: MPGameMode, maxPlayers: number, maxLevels?: number) => Promise<string | null>
   joinRoom: (code: string) => Promise<{ ok: boolean; error?: string }>
   startMatch: () => void
   addLetterByIndex: (index: number) => void
@@ -87,6 +88,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   status: 'idle',
   gameMode: 'quick',
   maxPlayers: 6,
+  maxLevels: 0,
   players: [],
   letters: [],
   targetLength: 15,
@@ -121,7 +123,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     }
   },
 
-  createRoom: async (mode: MPGameMode, maxPlayers: number) => {
+  createRoom: async (mode: MPGameMode, maxPlayers: number, maxLevels: number = 0) => {
     if (!db) return null
     set({ status: 'creating' })
 
@@ -141,6 +143,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       hostId: playerId,
       gameMode: mode,
       maxPlayers,
+      maxLevels,
       letters,
       targetLength,
       status: 'waiting',
@@ -196,11 +199,12 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       }
     })
 
-    // Listen for next round data (host sends new letters)
+    // Listen for next round data (host sends new letters) — show 3-2-1 countdown
     const nextRoundRef = ref(db, `rooms/${code}/nextRound`)
     const unsub5 = onValue(nextRoundRef, (snapshot) => {
       const val = snapshot.val()
       if (val && val.stage > get().stage) {
+        // Store new round data, show countdown
         set({
           letters: val.letters,
           targetLength: val.targetLength || 15,
@@ -208,16 +212,17 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           filledWords: [],
           currentWord: '',
           usedTileIndices: [],
-          timeLeft: 90,
-          status: 'playing',
+          status: 'countdown',
+          countdownValue: 3,
           feedback: null,
-        })
-        // Reset all player scores for this round in local state
-        set({
           players: get().players.map((p) => ({
             ...p, filledLength: 0, finished: false, perfectFit: false, ready: false,
           })),
         })
+        // 3-2-1 countdown then play
+        setTimeout(() => set({ countdownValue: 2 }), 1000)
+        setTimeout(() => set({ countdownValue: 1 }), 2000)
+        setTimeout(() => set({ status: 'playing', countdownValue: null, timeLeft: 90 }), 3000)
       }
     })
 
@@ -229,6 +234,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       status: 'waiting',
       gameMode: mode,
       maxPlayers,
+      maxLevels,
       letters,
       targetLength,
       stage: 1,
@@ -319,7 +325,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       }
     })
 
-    // Listen for next round data
+    // Listen for next round data — show 3-2-1 countdown
     const nextRoundRef = ref(db, `rooms/${upperCode}/nextRound`)
     const unsub5 = onValue(nextRoundRef, (snapshot) => {
       const val = snapshot.val()
@@ -331,13 +337,17 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           filledWords: [],
           currentWord: '',
           usedTileIndices: [],
-          timeLeft: 90,
-          status: 'playing',
+          status: 'countdown',
+          countdownValue: 3,
           feedback: null,
           players: get().players.map((p) => ({
             ...p, filledLength: 0, finished: false, perfectFit: false, ready: false,
           })),
         })
+        // 3-2-1 countdown then play
+        setTimeout(() => set({ countdownValue: 2 }), 1000)
+        setTimeout(() => set({ countdownValue: 1 }), 2000)
+        setTimeout(() => set({ status: 'playing', countdownValue: null, timeLeft: 90 }), 3000)
       }
     })
 
@@ -349,6 +359,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       status: 'lobby',
       gameMode: room.gameMode || 'quick',
       maxPlayers: roomMax,
+      maxLevels: room.maxLevels || 0,
       letters: room.letters,
       targetLength: room.targetLength || 15,
       stage: 1,
@@ -545,6 +556,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       status: 'idle',
       gameMode: 'quick',
       maxPlayers: 6,
+  maxLevels: 0,
       stage: 1,
       players: [],
       letters: [],
