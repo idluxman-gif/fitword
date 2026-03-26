@@ -30,6 +30,7 @@ function useTimer() {
   const checkStuck = useGameStore((s) => s.checkStuck)
   const status = useGameStore((s) => s.status)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const pausedAtRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (status === 'playing') {
@@ -42,6 +43,32 @@ function useTimer() {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
   }, [status, tick, checkStuck])
+
+  // Pause timer when app is backgrounded, resume when foregrounded
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        // App backgrounded — remember when we paused
+        pausedAtRef.current = Date.now()
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
+        }
+      } else {
+        // App foregrounded — resume timer (don't deduct time while backgrounded)
+        pausedAtRef.current = null
+        const currentStatus = useGameStore.getState().status
+        if (currentStatus === 'playing') {
+          intervalRef.current = setInterval(() => {
+            tick()
+            checkStuck()
+          }, 1000)
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [tick, checkStuck])
 }
 
 // ─── Mute Button ───
@@ -2235,21 +2262,29 @@ function useBackButton() {
   const [showBackLeave, setShowBackLeave] = useState(false)
   _setShowBackLeave = setShowBackLeave
 
-  const isPlaying = status !== 'idle' || gridStatus !== 'idle' || mpStatus !== 'idle' || designerStatus !== 'idle'
-  const wasPlayingRef = useRef(false)
+  const isInGame = status !== 'idle' || gridStatus !== 'idle' || mpStatus !== 'idle' || designerStatus !== 'idle'
+  const wasInGameRef = useRef(false)
 
   useEffect(() => {
-    if (isPlaying && !wasPlayingRef.current) {
+    if (isInGame && !wasInGameRef.current) {
+      // Push TWO history entries so back button has something to pop without leaving the page
       window.history.pushState({ inGame: true }, '')
-      wasPlayingRef.current = true
-    } else if (!isPlaying && wasPlayingRef.current) {
-      wasPlayingRef.current = false
+      window.history.pushState({ inGame: true }, '')
+      wasInGameRef.current = true
+    } else if (!isInGame && wasInGameRef.current) {
+      wasInGameRef.current = false
     }
-  }, [isPlaying])
+  }, [isInGame])
 
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
-      if (wasPlayingRef.current) {
+      // Check current state directly — don't rely only on ref
+      const mpActive = useMultiplayerStore.getState().status !== 'idle'
+      const gridActive = useGridStore.getState().status !== 'idle'
+      const gameActive = useGameStore.getState().status !== 'idle'
+      const anyActive = mpActive || gridActive || gameActive || wasInGameRef.current
+
+      if (anyActive) {
         e.preventDefault()
         // Re-push history so back button can be pressed again if user cancels
         window.history.pushState({ inGame: true }, '')
@@ -2257,13 +2292,29 @@ function useBackButton() {
         setShowBackLeave(true)
       }
     }
+
+    // Prevent accidental page close during game
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const mpActive = useMultiplayerStore.getState().status !== 'idle'
+      const gridActive = useGridStore.getState().status !== 'idle'
+      const gameActive = useGameStore.getState().status !== 'idle'
+      if (mpActive || gridActive || gameActive) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+
     window.addEventListener('popstate', handlePopState)
-    return () => window.removeEventListener('popstate', handlePopState)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
   }, [])
 
   const handleConfirmLeave = () => {
     setShowBackLeave(false)
-    wasPlayingRef.current = false
+    wasInGameRef.current = false
     // Check all stores — multiplayer first since it may wrap grid/row modes
     const mpState = useMultiplayerStore.getState().status
     const gridState = useGridStore.getState().status
