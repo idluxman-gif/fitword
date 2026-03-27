@@ -1091,10 +1091,8 @@ function MultiplayerTopBar() {
   const gameMode = useMultiplayerStore((s) => s.gameMode)
   const gridScore = useGridStore((s) => s.score)
 
-  // In grid/shapes mode, show grid store score during play (real-time word scores)
-  // mpScore is the accumulated total shown in the scoreboard between levels
-  const isGridMode = gameMode === 'grid' || gameMode === 'shapes'
-  const score = isGridMode ? gridScore : mpScore
+  // mpScore is always the source of truth — includes base + current level (synced by bridge)
+  const score = mpScore
 
   const filledLen = filledWords.reduce((s, w) => s + w.length, 0)
   const remaining = targetLength - filledLen
