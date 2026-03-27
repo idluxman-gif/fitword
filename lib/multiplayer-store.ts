@@ -201,8 +201,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     const roundEndRef = ref(db, `rooms/${code}/roundEnd`)
     const unsub4 = onValue(roundEndRef, (snapshot) => {
       const val = snapshot.val()
-      if (val && get().status === 'playing') {
-        // Someone else finished — end round for everyone (no bonus for non-finishers)
+      // Guard: only process if playing AND roundEnd is for the current stage
+      if (val && get().status === 'playing' && (!val.stage || val.stage === get().stage)) {
         get().broadcastState()
         const finisher = val.by || ''
         const isMe = finisher === get().playerId
@@ -212,12 +212,12 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       }
     })
 
-    // Listen for next round data (host sends new letters) — show 3-2-1 countdown
+    // Listen for next round data (host sends new letters) — go straight to playing
+    // The 3-2-1 countdown is handled visually by MultiplayerResults before calling nextRound
     const nextRoundRef = ref(db, `rooms/${code}/nextRound`)
     const unsub5 = onValue(nextRoundRef, (snapshot) => {
       const val = snapshot.val()
       if (val && val.stage > get().stage) {
-        // Store new round data + shape, show countdown
         set({
           letters: val.letters,
           targetLength: val.targetLength || 15,
@@ -226,17 +226,14 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           filledWords: [],
           currentWord: '',
           usedTileIndices: [],
-          status: 'countdown',
-          countdownValue: 3,
+          status: 'playing',
+          countdownValue: null,
+          timeLeft: 90,
           feedback: null,
           players: get().players.map((p) => ({
             ...p, filledLength: 0, finished: false, perfectFit: false, ready: false,
           })),
         })
-        // 3-2-1 countdown then play
-        setTimeout(() => set({ countdownValue: 2 }), 1000)
-        setTimeout(() => set({ countdownValue: 1 }), 2000)
-        setTimeout(() => set({ status: 'playing', countdownValue: null, timeLeft: 90 }), 3000)
       }
     })
 
@@ -334,13 +331,15 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     const roundEndRef = ref(db, `rooms/${upperCode}/roundEnd`)
     const unsub4 = onValue(roundEndRef, (snapshot) => {
       const val = snapshot.val()
-      if (val && get().status === 'playing') {
+      // Guard: only process if playing AND roundEnd is for the current stage
+      if (val && get().status === 'playing' && (!val.stage || val.stage === get().stage)) {
         get().broadcastState()
         set({ status: 'finished', feedback: { text: '!הסיבוב נגמר', type: 'info' } })
       }
     })
 
-    // Listen for next round data — show 3-2-1 countdown
+    // Listen for next round data — go straight to playing
+    // The 3-2-1 countdown is handled visually by MultiplayerResults before calling nextRound
     const nextRoundRef = ref(db, `rooms/${upperCode}/nextRound`)
     const unsub5 = onValue(nextRoundRef, (snapshot) => {
       const val = snapshot.val()
@@ -353,17 +352,14 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           filledWords: [],
           currentWord: '',
           usedTileIndices: [],
-          status: 'countdown',
-          countdownValue: 3,
+          status: 'playing',
+          countdownValue: null,
+          timeLeft: 90,
           feedback: null,
           players: get().players.map((p) => ({
             ...p, filledLength: 0, finished: false, perfectFit: false, ready: false,
           })),
         })
-        // 3-2-1 countdown then play
-        setTimeout(() => set({ countdownValue: 2 }), 1000)
-        setTimeout(() => set({ countdownValue: 1 }), 2000)
-        setTimeout(() => set({ status: 'playing', countdownValue: null, timeLeft: 90 }), 3000)
       }
     })
 
@@ -508,7 +504,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
   // Called when THIS player finishes (perfect fit or timeout) → ends round for ALL
   finishRound: async () => {
-    const { roomCode, status, playerId, score } = get()
+    const { roomCode, status, playerId, score, stage } = get()
     if (!db || !roomCode || status !== 'playing') return
 
     const FIRST_FINISH_BONUS = 40
@@ -517,7 +513,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     // Use transaction to check if someone already finished first
     const { committed, snapshot } = await runTransaction(roundEndRef, (current) => {
       if (current) return // Someone already wrote — don't overwrite
-      return { at: Date.now(), by: playerId }
+      return { at: Date.now(), by: playerId, stage }
     })
 
     const isFirst = committed && snapshot?.val()?.by === playerId
@@ -550,13 +546,15 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       newShapeData = shape
     }
 
-    // Clear roundEnd and write nextRound data — all players listen
-    remove(ref(db, `rooms/${roomCode}/roundEnd`))
-    fbSet(ref(db, `rooms/${roomCode}/nextRound`), {
-      letters: newLetters,
-      targetLength: 15,
-      stage: newStage,
-      shapeData: newShapeData || null,
+    // Clear roundEnd FIRST, then write nextRound data — all players listen
+    // Using await to ensure roundEnd is cleared before new round starts
+    remove(ref(db!, `rooms/${roomCode}/roundEnd`)).then(() => {
+      fbSet(ref(db!, `rooms/${roomCode}/nextRound`), {
+        letters: newLetters,
+        targetLength: 15,
+        stage: newStage,
+        shapeData: newShapeData || null,
+      })
     })
   },
 
