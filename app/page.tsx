@@ -1091,9 +1091,9 @@ function MultiplayerTopBar() {
   const gameMode = useMultiplayerStore((s) => s.gameMode)
   const gridScore = useGridStore((s) => s.score)
 
-  // In grid/shapes mode, show grid store score (real-time); in row modes, show multiplayer store score
+  // In grid/shapes mode, show accumulated mp score + current level's grid score
   const isGridMode = gameMode === 'grid' || gameMode === 'shapes'
-  const score = isGridMode ? gridScore : mpScore
+  const score = isGridMode ? mpScore + gridScore : mpScore
 
   const filledLen = filledWords.reduce((s, w) => s + w.length, 0)
   const remaining = targetLength - filledLen
@@ -1411,9 +1411,7 @@ function MultiplayerGridBridge() {
       const difficulty = mpGameMode === 'shapes' ? 'shapes' : 'normal'
 
       if (isNewStage) {
-        // Carry score: sync grid score to multiplayer, then start next stage with shared shape
-        const currentGridScore = useGridStore.getState().score
-        useMultiplayerStore.setState({ score: useMultiplayerStore.getState().score + currentGridScore })
+        // Start next stage — score already synced to mp store by grid won/lost effects
         if (mpShapeData) {
           useGridStore.getState().nextGridStageWithShape(mpShapeData, mpLetters)
         } else {

@@ -460,8 +460,9 @@ export const useGridStore = create<GridState>((set, get) => ({
   },
 
   // Next stage with pre-generated shape (multiplayer)
+  // Score resets to 0 — accumulation handled by multiplayer store
   nextGridStageWithShape: (shape: boolean[][], letters: string[]) => {
-    const { stage, score, difficulty } = get()
+    const { stage, difficulty } = get()
     const newStage = stage + 1
     const rows = shape.length
     const cols = shape[0]?.length || 1
@@ -473,7 +474,7 @@ export const useGridStore = create<GridState>((set, get) => ({
       difficulty, gridRows: rows, gridCols: cols, grid,
       placedWords: [], selectedCell: null, direction: 'right' as Direction,
       letters, currentWord: '', usedTileIndices: [],
-      score: score + 50, timeLeft: 120, status: 'playing' as GridStatus,
+      score: 0, timeLeft: 120, status: 'playing' as GridStatus,
       feedback: null, stage: newStage,
     })
   },
