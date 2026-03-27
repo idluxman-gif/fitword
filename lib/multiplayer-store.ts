@@ -508,26 +508,17 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     const { roomCode, status, playerId, score, stage } = get()
     if (!db || !roomCode || status !== 'playing') return
 
-    const FIRST_FINISH_BONUS = 40
     const roundEndRef = ref(db, `rooms/${roomCode}/roundEnd`)
 
-    // Use transaction to check if someone already finished first
-    const { committed, snapshot } = await runTransaction(roundEndRef, (current) => {
+    // Write roundEnd to signal all players — first writer wins
+    await runTransaction(roundEndRef, (current) => {
       if (current) return // Someone already wrote — don't overwrite
       return { at: Date.now(), by: playerId, stage }
     })
 
-    const isFirst = committed && snapshot?.val()?.by === playerId
-
-    if (isFirst) {
-      set({ score: score + FIRST_FINISH_BONUS })
-      get().broadcastState()
-      set({ status: 'finished', feedback: { text: `!סיימת ראשון +${FIRST_FINISH_BONUS} 🏆`, type: 'success' } })
-    } else {
-      // Not first — just broadcast final score and mark finished
-      get().broadcastState()
-      set({ status: 'finished', feedback: { text: '!סיימת ✓', type: 'success' } })
-    }
+    // No first-finish bonus — just broadcast final score and mark finished
+    get().broadcastState()
+    set({ status: 'finished', feedback: { text: '!סיימת ✓', type: 'success' } })
   },
 
   // Called by host to start next round with new letters for everyone
