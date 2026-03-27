@@ -1089,6 +1089,8 @@ function MultiplayerTopBar() {
   const setShowLeaveConfirm = useMultiplayerStore((s) => s.setShowLeaveConfirm)
   const leaveGame = useMultiplayerStore((s) => s.leaveGame)
   const gameMode = useMultiplayerStore((s) => s.gameMode)
+  const stage = useMultiplayerStore((s) => s.stage)
+  const maxLevels = useMultiplayerStore((s) => s.maxLevels)
   const gridScore = useGridStore((s) => s.score)
 
   // mpScore is always the source of truth — includes base + current level (synced by bridge)
@@ -1099,12 +1101,14 @@ function MultiplayerTopBar() {
   const minutes = Math.floor(timeLeft / 60)
   const seconds = timeLeft % 60
   const isLow = timeLeft <= 15
+  const stageLabel = maxLevels > 0 ? `${stage}/${maxLevels}` : `שלב ${stage}`
 
   return (
     <div className="flex items-center justify-between px-3 py-2">
       <span className={`text-lg font-bold tabular-nums ${isLow ? 'text-error animate-pulse' : 'text-white'}`}>
         {minutes}:{seconds.toString().padStart(2, '0')}
       </span>
+      <span className="text-sm text-gray-400">{stageLabel}</span>
       <span className="text-lg font-bold text-accent">{score} נק׳</span>
       <div className="flex items-center gap-1">
         <span className="text-sm text-gray-400">נשארו {remaining}</span>
@@ -1329,14 +1333,14 @@ function MultiplayerResults() {
           <div className="text-7xl mb-4">👑</div>
           <h2 className="text-3xl font-bold text-accent mb-2">!{winner?.name} מוביל</h2>
           <p className="text-xl text-white font-bold">{winner?.score} נק׳</p>
-          <p className="text-gray-400 text-sm mt-2">שלב {stage} הושלם</p>
+          <p className="text-gray-400 text-sm mt-2">{maxLevels > 0 ? `שלב ${stage}/${maxLevels} הושלם` : `שלב ${stage} הושלם`}</p>
         </motion.div>
       )}
 
       {/* Phase: Scoreboard with countdown */}
       {phase === 'scoreboard' && (
         <div className="text-center w-full">
-          <h2 className="text-xl font-bold text-accent mb-4">טבלת ניקוד — שלב {stage}</h2>
+          <h2 className="text-xl font-bold text-accent mb-4">טבלת ניקוד — {maxLevels > 0 ? `שלב ${stage}/${maxLevels}` : `שלב ${stage}`}</h2>
 
           <div className="w-full max-w-[300px] mx-auto space-y-2 mb-6">
             {allPlayers.map((p, i) => (
