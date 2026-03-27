@@ -14,6 +14,7 @@ export type MultiplayerStatus =
   | 'countdown'
   | 'playing'
   | 'finished'
+  | 'game_over'
 
 export interface PlayerState {
   id: string
@@ -237,6 +238,14 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       }
     })
 
+    // Listen for game over signal
+    const gameOverRef = ref(db, `rooms/${code}/gameOver`)
+    const unsub6 = onValue(gameOverRef, (snapshot) => {
+      if (snapshot.val() && get().status !== 'idle' && get().status !== 'game_over') {
+        set({ status: 'game_over' })
+      }
+    })
+
     set({
       roomCode: code,
       playerId,
@@ -256,7 +265,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       usedTileIndices: [],
       score: 0,
       feedback: null,
-      _unsubscribers: [unsub1, unsub2, unsub3, unsub4, unsub5],
+      _unsubscribers: [unsub1, unsub2, unsub3, unsub4, unsub5, unsub6],
     })
 
     return code
@@ -364,6 +373,14 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       }
     })
 
+    // Listen for game over signal
+    const gameOverRef = ref(db, `rooms/${upperCode}/gameOver`)
+    const unsub6 = onValue(gameOverRef, (snapshot) => {
+      if (snapshot.val() && get().status !== 'idle' && get().status !== 'game_over') {
+        set({ status: 'game_over' })
+      }
+    })
+
     set({
       roomCode: upperCode,
       playerId,
@@ -382,7 +399,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       usedTileIndices: [],
       score: 0,
       feedback: null,
-      _unsubscribers: [unsub1, unsub2, unsub3, unsub4, unsub5],
+      _unsubscribers: [unsub1, unsub2, unsub3, unsub4, unsub5, unsub6],
     })
 
     return { ok: true }

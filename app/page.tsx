@@ -1680,7 +1680,60 @@ function MultiplayerGame() {
       <AnimatePresence>
         <MultiplayerResults />
       </AnimatePresence>
+      <MultiplayerGameOver />
     </>
+  )
+}
+
+function MultiplayerGameOver() {
+  const status = useMultiplayerStore((s) => s.status)
+  const players = useMultiplayerStore((s) => s.players)
+  const playerId = useMultiplayerStore((s) => s.playerId)
+  const score = useMultiplayerStore((s) => s.score)
+  const stage = useMultiplayerStore((s) => s.stage)
+  const maxLevels = useMultiplayerStore((s) => s.maxLevels)
+  const leaveGame = useMultiplayerStore((s) => s.leaveGame)
+  const MEDALS = ['🥇', '🥈', '🥉']
+
+  if (status !== 'game_over') return null
+
+  const allPlayers = players.map((p) =>
+    p.id === playerId ? { ...p, score } : p
+  ).sort((a, b) => b.score - a.score)
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6">
+      <div className="text-5xl mb-3">🏆</div>
+      <h2 className="text-2xl font-bold text-accent mb-1">!המשחק נגמר</h2>
+      <p className="text-gray-400 text-sm mb-4">{maxLevels > 0 ? `${maxLevels} שלבים הושלמו` : `${stage} שלבים`}</p>
+
+      <div className="w-full max-w-[300px] space-y-2 mb-6">
+        {allPlayers.map((p, i) => (
+          <motion.div key={p.id}
+            initial={{ x: 20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: i * 0.15 }}
+            className={`flex items-center justify-between px-4 py-3 rounded-xl ${
+              i === 0 ? 'bg-yellow-500/20 border border-yellow-500/50' :
+              p.id === playerId ? 'bg-accent/20 border border-accent/50' : 'bg-tile border border-gray-700/40'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{i < 3 ? MEDALS[i] : `${i + 1}.`}</span>
+              <span className="text-white font-medium">{p.name}</span>
+              {p.id === playerId && <span className="text-xs text-accent">(אתה)</span>}
+            </div>
+            <span className="text-white font-bold">{p.score}</span>
+          </motion.div>
+        ))}
+      </div>
+
+      <button onClick={leaveGame}
+        className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg shadow-accent/30">
+        תפריט ראשי
+      </button>
+    </motion.div>
   )
 }
 
