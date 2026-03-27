@@ -318,11 +318,12 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       }
     })
 
-    // Listen for room status
+    // Listen for room status — only react to countdown if we're still in lobby/waiting
     const statusRef = ref(db, `rooms/${upperCode}/status`)
     const unsub3 = onValue(statusRef, (snapshot) => {
       const val = snapshot.val()
-      if (val === 'countdown') {
+      const currentStatus = get().status
+      if (val === 'countdown' && (currentStatus === 'waiting' || currentStatus === 'lobby')) {
         set({ status: 'countdown' })
       }
     })
@@ -547,8 +548,9 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     }
 
     // Clear roundEnd FIRST, then write nextRound data — all players listen
-    // Using await to ensure roundEnd is cleared before new round starts
+    // Also set room status to 'playing' to prevent stale 'countdown' from re-triggering
     remove(ref(db!, `rooms/${roomCode}/roundEnd`)).then(() => {
+      update(ref(db!, `rooms/${roomCode}`), { status: 'playing' })
       fbSet(ref(db!, `rooms/${roomCode}/nextRound`), {
         letters: newLetters,
         targetLength: 15,
