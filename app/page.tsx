@@ -1091,9 +1091,10 @@ function MultiplayerTopBar() {
   const gameMode = useMultiplayerStore((s) => s.gameMode)
   const gridScore = useGridStore((s) => s.score)
 
-  // In grid/shapes mode, show accumulated mp score + current level's grid score
+  // In grid/shapes mode, show grid store score during play (real-time word scores)
+  // mpScore is the accumulated total shown in the scoreboard between levels
   const isGridMode = gameMode === 'grid' || gameMode === 'shapes'
-  const score = isGridMode ? mpScore + gridScore : mpScore
+  const score = isGridMode ? gridScore : mpScore
 
   const filledLen = filledWords.reduce((s, w) => s + w.length, 0)
   const remaining = targetLength - filledLen
@@ -1434,8 +1435,9 @@ function MultiplayerGridBridge() {
     if (mpStatus === 'finished' && initRef.current) {
       const gs = useGridStore.getState()
       if (gs.status === 'playing') {
-        // Sync whatever score we accumulated so far
-        useMultiplayerStore.setState({ score: useMultiplayerStore.getState().score + gs.score })
+        // Lock in base + current level score
+        baseScoreRef.current = baseScoreRef.current + gs.score
+        useMultiplayerStore.setState({ score: baseScoreRef.current })
         useMultiplayerStore.getState().broadcastState()
         // Stop the grid
         useGridStore.setState({ status: 'lost' })
@@ -1460,31 +1462,41 @@ function MultiplayerGridBridge() {
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [gridStatus, gridTick])
 
-  // Sync grid score to multiplayer store in real-time (for opponent bars)
+  // Track accumulated base score from previous levels
+  const baseScoreRef = useRef(0)
+
+  // Sync grid score to multiplayer store in real-time (base + current level)
   useEffect(() => {
     if (initRef.current && gridStatus === 'playing') {
-      useMultiplayerStore.setState({ score: gridScore })
+      useMultiplayerStore.setState({ score: baseScoreRef.current + gridScore })
       useMultiplayerStore.getState().broadcastState()
     }
   }, [gridScore, gridStatus])
 
-  // When grid completes (stage_clear or won), sync score to multiplayer and finish round
+  // When grid completes (stage_clear or won), lock in score and finish round
   useEffect(() => {
     if (initRef.current && (gridStatus === 'won' || gridStatus === 'stage_clear')) {
-      useMultiplayerStore.setState({ score: useMultiplayerStore.getState().score + gridScore })
+      baseScoreRef.current = baseScoreRef.current + gridScore
+      useMultiplayerStore.setState({ score: baseScoreRef.current })
       broadcastState()
       finishRound()
     }
   }, [gridStatus, gridScore, broadcastState, finishRound])
 
-  // When grid is lost (timer/stuck), also end the round
+  // When grid is lost (timer/stuck), lock in score and finish round
   useEffect(() => {
     if (initRef.current && gridStatus === 'lost') {
-      useMultiplayerStore.setState({ score: useMultiplayerStore.getState().score + gridScore })
+      baseScoreRef.current = baseScoreRef.current + gridScore
+      useMultiplayerStore.setState({ score: baseScoreRef.current })
       broadcastState()
       finishRound()
     }
   }, [gridStatus, gridScore, broadcastState, finishRound])
+
+  // Reset base score when leaving multiplayer
+  useEffect(() => {
+    if (mpStatus === 'idle') baseScoreRef.current = 0
+  }, [mpStatus])
 
   return null
 }
