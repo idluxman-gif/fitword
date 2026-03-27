@@ -1244,10 +1244,11 @@ function MultiplayerResults() {
   const filledWords = useMultiplayerStore((s) => s.filledWords)
   const targetLength = useMultiplayerStore((s) => s.targetLength)
   const stage = useMultiplayerStore((s) => s.stage)
+  const maxLevels = useMultiplayerStore((s) => s.maxLevels)
   const isHost = useMultiplayerStore((s) => s.isHost)
   const nextRound = useMultiplayerStore((s) => s.nextRound)
   const leaveGame = useMultiplayerStore((s) => s.leaveGame)
-  const [phase, setPhase] = useState<'waiting' | 'winner' | 'scoreboard'>('waiting')
+  const [phase, setPhase] = useState<'waiting' | 'winner' | 'scoreboard' | 'final'>('waiting')
   const [countdown, setCountdown] = useState<number | null>(null)
   const autoTriggeredRef = useRef(false)
 
@@ -1280,8 +1281,16 @@ function MultiplayerResults() {
     if (!allFinished || autoTriggeredRef.current) return
     autoTriggeredRef.current = true
 
+    const isFinalLevel = maxLevels > 0 && stage >= maxLevels
+
     // Phase 1: Show winner for 2 seconds
     setPhase('winner')
+
+    if (isFinalLevel) {
+      // Final level — show winner then final scoreboard (no countdown, no next round)
+      const t1 = setTimeout(() => setPhase('final'), 2000)
+      return () => clearTimeout(t1)
+    }
 
     // Phase 2: Show scoreboard + countdown 3-2-1
     const t1 = setTimeout(() => { setPhase('scoreboard'); setCountdown(3) }, 2000)
@@ -1293,7 +1302,7 @@ function MultiplayerResults() {
     }, 5000)
 
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4) }
-  }, [isFinished, allFinished, isHost, nextRound])
+  }, [isFinished, allFinished, isHost, nextRound, maxLevels, stage])
 
   if (!isFinished) return null
 
@@ -1360,6 +1369,36 @@ function MultiplayerResults() {
               {countdown}
             </motion.div>
           )}
+        </div>
+      )}
+
+      {/* Final scoreboard — game over, no more levels */}
+      {phase === 'final' && (
+        <div className="text-center w-full">
+          <div className="text-5xl mb-3">🏆</div>
+          <h2 className="text-2xl font-bold text-accent mb-1">!המשחק נגמר</h2>
+          <p className="text-gray-400 text-sm mb-4">{maxLevels} שלבים הושלמו</p>
+
+          <div className="w-full max-w-[300px] mx-auto space-y-2 mb-6">
+            {allPlayers.map((p, i) => (
+              <motion.div key={p.id}
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: i * 0.15 }}
+                className={`flex items-center justify-between px-4 py-3 rounded-xl ${
+                  i === 0 ? 'bg-yellow-500/20 border border-yellow-500/50' :
+                  p.id === playerId ? 'bg-accent/20 border border-accent/50' : 'bg-tile border border-gray-700/40'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{i < 3 ? MEDALS[i] : `${i + 1}.`}</span>
+                  <span className="text-white font-medium">{p.name}</span>
+                  {p.id === playerId && <span className="text-xs text-accent">(אתה)</span>}
+                </div>
+                <span className="text-white font-bold">{p.score}</span>
+              </motion.div>
+            ))}
+          </div>
         </div>
       )}
 

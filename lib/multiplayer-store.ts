@@ -523,8 +523,15 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
   // Called by host to start next round with new letters for everyone
   nextRound: () => {
-    const { roomCode, isHost, stage, gameMode } = get()
+    const { roomCode, isHost, stage, gameMode, maxLevels } = get()
     if (!db || !roomCode || !isHost) return
+
+    // Check if max levels reached (0 = unlimited)
+    if (maxLevels > 0 && stage >= maxLevels) {
+      // Game over — write gameOver to Firebase so all players see final results
+      fbSet(ref(db, `rooms/${roomCode}/gameOver`), { finalStage: stage })
+      return
+    }
     const newLetters = pickWeightedLetters(10)
     const newStage = stage + 1
 
