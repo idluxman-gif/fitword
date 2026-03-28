@@ -2302,6 +2302,112 @@ function CustomPackGame() {
   return null // GridGame renders via grid store status
 }
 
+// ─── Pre-Game Screen ───
+const MODE_INFO: Record<string, {
+  emoji: string; title: string; desc: string; lbMode: string; lbLabel: string
+}> = {
+  quick:      { emoji: '⚡', title: 'משחק מהיר',    desc: 'קבל 7 אותיות ומלא שורה של 13–16 תווים במילים לפני שנגמר הזמן. מלא בדיוק — Perfect Fit!', lbMode: 'quick',      lbLabel: 'נק׳' },
+  endless:    { emoji: '♾️', title: 'אינסוף',       desc: 'מלא שורות שלב אחרי שלב. בכל שלב פחות אותיות וקשה יותר. כמה שלבים תצליח להגיע?',            lbMode: 'endless',    lbLabel: 'שלב' },
+  score_rush: { emoji: '🔥', title: 'ריצת ניקוד',  desc: 'שלח מילים ברצף ואסוף ניקוד כמה שאפשר. מילה ארוכה = יותר זמן. ניצחון בניקוד גבוה!',           lbMode: 'score_rush', lbLabel: 'נק׳' },
+  grid:       { emoji: '🔲', title: 'רשת',          desc: 'מלא לוח רשת בצלב-מילים. הנח מילים לימין ולמטה כך שיחפפו בחרות. מלא את כל הלוח!',            lbMode: 'grid',       lbLabel: 'שלב' },
+  shapes:     { emoji: '🔷', title: 'צורות',        desc: 'כמו רשת, רק שהלוח בצורה מיוחדת. השלם את הצורה עם מילים בכל כיוון. האתגר הגדול!',              lbMode: 'shapes',     lbLabel: 'שלב' },
+}
+
+function PreGameScreen({ modeKey, onStart, onBack }: {
+  modeKey: string; onStart: () => void; onBack: () => void
+}) {
+  const [countdown, setCountdown] = useState<number | null>(null)
+  const [board, setBoard] = useState<LeaderboardEntry[]>([])
+  const info = MODE_INFO[modeKey]
+  const MEDALS = ['🥇', '🥈', '🥉']
+
+  useEffect(() => {
+    if (info) fetchLeaderboard(info.lbMode).then(setBoard)
+  }, [modeKey])
+
+  const handleStart = () => {
+    setCountdown(3)
+    const t1 = setTimeout(() => setCountdown(2), 1000)
+    const t2 = setTimeout(() => setCountdown(1), 2000)
+    const t3 = setTimeout(() => { setCountdown(null); onStart() }, 3000)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
+  }
+
+  if (!info) return null
+
+  if (countdown !== null) {
+    return (
+      <motion.div key="cd" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        className="fixed inset-0 bg-bg flex flex-col items-center justify-center z-50">
+        <motion.div
+          key={countdown}
+          initial={{ scale: 1.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.6, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+          className="text-9xl font-bold text-accent"
+        >
+          {countdown}
+        </motion.div>
+      </motion.div>
+    )
+  }
+
+  return (
+    <motion.div initial={{ x: 40, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
+      exit={{ x: -40, opacity: 0 }}
+      className="fixed inset-0 bg-bg flex flex-col z-50 px-6 pt-safe pb-safe overflow-y-auto">
+
+      {/* Back button */}
+      <button onClick={onBack} className="self-start mt-4 mb-6 flex items-center gap-1 text-gray-400 text-sm">
+        <span>→</span><span>חזרה</span>
+      </button>
+
+      {/* Header */}
+      <div className="text-center mb-6">
+        <div className="text-6xl mb-3">{info.emoji}</div>
+        <h1 className="text-3xl font-bold text-white mb-2">{info.title}</h1>
+        <p className="text-gray-400 text-base leading-relaxed">{info.desc}</p>
+      </div>
+
+      {/* Leaderboard */}
+      <div className="mb-6">
+        <h2 className="text-center text-gray-400 text-sm font-medium mb-3 tracking-wide uppercase">
+          טבלת שיאים
+        </h2>
+        {board.length === 0 ? (
+          <p className="text-center text-gray-600 text-sm">אין שיאים עדיין — היה הראשון!</p>
+        ) : (
+          <div className="space-y-2 max-w-[300px] mx-auto">
+            {board.map((entry, i) => (
+              <motion.div key={i}
+                initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: i * 0.08 }}
+                className={`flex items-center justify-between px-4 py-3 rounded-xl ${
+                  i === 0 ? 'bg-yellow-500/15 border border-yellow-500/40' : 'bg-tile border border-gray-700/30'
+                }`}>
+                <div className="flex items-center gap-3">
+                  <span className="text-lg w-6 text-center">{i < 3 ? MEDALS[i] : `${i + 1}.`}</span>
+                  <span className="text-white font-medium">{entry.name}</span>
+                </div>
+                <span className="text-accent font-bold">{entry.value} {info.lbLabel}</span>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Start button */}
+      <div className="mt-auto pb-6 max-w-[300px] mx-auto w-full">
+        <motion.button whileTap={{ scale: 0.96 }} onClick={handleStart}
+          className="w-full py-5 rounded-2xl bg-accent text-white text-2xl font-bold shadow-xl shadow-accent/30">
+          !התחל משחק
+        </motion.button>
+      </div>
+    </motion.div>
+  )
+}
+
 // ─── Home Screen ───
 function HomeScreen() {
   const [isMulti, setIsMulti] = useState(false)
@@ -2310,6 +2416,7 @@ function HomeScreen() {
   const [levelCount, setLevelCount] = useState(5)
   const [joinCode, setJoinCode] = useState('')
   const [joinError, setJoinError] = useState('')
+  const [preGameMode, setPreGameMode] = useState<string | null>(null)
   const startGame = useGameStore((s) => s.startGame)
   const bestScoreQuick = useGameStore((s) => s.bestScoreQuick)
   const bestStageEndless = useGameStore((s) => s.bestStageEndless)
@@ -2339,9 +2446,15 @@ function HomeScreen() {
 
   const openDesigner = useDesignerStore((s) => s.openHub)
 
-  // Single player mode click
+  // Single player mode click — show pre-game screen first
   const handleSingleModeClick = (key: string) => {
     if (key === 'designer') { openDesigner(); return }
+    setPreGameMode(key)
+  }
+
+  // Called when player hits "Start" on pre-game screen (after 3-2-1)
+  const handlePreGameStart = (key: string) => {
+    setPreGameMode(null)
     if (key === 'grid') startGrid('normal')
     else if (key === 'shapes') startGrid('shapes')
     else startGame(key as GameMode)
@@ -2359,6 +2472,16 @@ function HomeScreen() {
     if (joinCode.length !== 4) return
     const res = await joinRoom(joinCode)
     if (!res.ok) setJoinError(res.error || 'שגיאה')
+  }
+
+  if (preGameMode) {
+    return (
+      <PreGameScreen
+        modeKey={preGameMode}
+        onStart={() => handlePreGameStart(preGameMode)}
+        onBack={() => setPreGameMode(null)}
+      />
+    )
   }
 
   return (
