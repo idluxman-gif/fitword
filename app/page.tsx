@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore, type GameMode } from '@/lib/store'
 import { useGridStore, type Direction } from '@/lib/grid-store'
 import { useMultiplayerStore, type MultiplayerStatus } from '@/lib/multiplayer-store'
 import { useDesignerStore, type CustomLevel, type LevelPack } from '@/lib/designer-store'
 import { playTileTap, playValidWord, playInvalidWord, playPerfectFit, playStageClear } from '@/lib/sound'
+import { fetchLeaderboard, checkQualifies, submitScore, type LeaderboardEntry } from '@/lib/leaderboard'
 
 // ─── Init Hook ───
 function useInit() {
@@ -466,6 +467,110 @@ function StageClearScreen() {
   )
 }
 
+// ─── Leaderboard Hook + Component ───
+
+function useLeaderboard(mode: string, value: number, active: boolean) {
+  const [board, setBoard] = useState<LeaderboardEntry[]>([])
+  const [qualifies, setQualifies] = useState(false)
+  const [submittedRank, setSubmittedRank] = useState<number | null>(null)
+  const [nameInput, setNameInput] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const checkedRef = useRef(false)
+
+  useEffect(() => {
+    if (!active || value <= 0) return
+    checkedRef.current = false
+    setSubmittedRank(null)
+    setNameInput('')
+    fetchLeaderboard(mode).then((b) => {
+      setBoard(b)
+      if (!checkedRef.current) {
+        checkedRef.current = true
+        const q = b.length < 5 || value > b[b.length - 1].value
+        setQualifies(q)
+      }
+    })
+  }, [mode, value, active])
+
+  const handleSubmit = useCallback(async () => {
+    if (!nameInput.trim() || submitting) return
+    setSubmitting(true)
+    const rank = await submitScore(mode, value, nameInput.trim())
+    setSubmittedRank(rank)
+    setQualifies(false)
+    const updated = await fetchLeaderboard(mode)
+    setBoard(updated)
+    setSubmitting(false)
+  }, [mode, value, nameInput, submitting])
+
+  return { board, qualifies, submittedRank, nameInput, setNameInput, submitting, handleSubmit }
+}
+
+function LeaderboardSection({ mode, value, personalBest, personalLabel, active }: {
+  mode: string; value: number; personalBest: number; personalLabel: string; active: boolean
+}) {
+  const { board, qualifies, submittedRank, nameInput, setNameInput, submitting, handleSubmit } = useLeaderboard(mode, value, active)
+  const isNewPersonal = value > 0 && value >= personalBest
+  const MEDALS = ['🥇', '🥈', '🥉']
+
+  if (!active) return null
+
+  return (
+    <div className="w-full max-w-[280px] text-center space-y-2 mb-4">
+      {/* Personal record */}
+      <div className="flex items-center justify-center gap-2">
+        <span className="text-gray-400 text-sm">שיא אישי:</span>
+        <span className="text-white text-sm font-bold">{personalBest > 0 ? `${personalBest} ${personalLabel}` : '—'}</span>
+        {isNewPersonal && <span className="text-yellow-400 text-xs font-bold">!שיא חדש</span>}
+      </div>
+
+      {/* All-time #1 */}
+      {board.length > 0 && (
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-gray-400 text-sm">שיא כל הזמנים:</span>
+          <span className="text-accent text-sm font-bold">{board[0].value} {personalLabel}</span>
+        </div>
+      )}
+
+      {/* Name input when qualifying */}
+      {qualifies && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          className="bg-accent/20 border border-accent/40 rounded-xl p-3 space-y-2">
+          <p className="text-accent font-bold text-sm">!נכנסת לטבלת השיאים</p>
+          <div className="flex gap-2" dir="rtl">
+            <input type="text" maxLength={10} value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+              placeholder="הכנס שם"
+              className="flex-1 px-3 py-2 rounded-lg bg-bg border border-gray-600 text-white text-center text-sm outline-none focus:border-accent" autoFocus />
+            <button onClick={handleSubmit} disabled={submitting || !nameInput.trim()}
+              className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-bold disabled:opacity-50">
+              {submitting ? '...' : 'שמור'}
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Top 5 table */}
+      {board.length > 0 && (
+        <div className="space-y-1">
+          {board.map((entry, i) => (
+            <div key={i} className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-sm ${
+              submittedRank === i ? 'bg-accent/20 border border-accent/40' : 'bg-tile/50'
+            }`}>
+              <div className="flex items-center gap-2">
+                <span>{i < 3 ? MEDALS[i] : `${i + 1}.`}</span>
+                <span className="text-white">{entry.name}</span>
+              </div>
+              <span className="text-gray-300 font-bold">{entry.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Result Screen ───
 function ResultScreen() {
   const status = useGameStore((s) => s.status)
@@ -477,10 +582,16 @@ function ResultScreen() {
   const stage = useGameStore((s) => s.stage)
   const startGame = useGameStore((s) => s.startGame)
   const goHome = useGameStore((s) => s.goHome)
+  const bestScoreQuick = useGameStore((s) => s.bestScoreQuick)
+  const bestStageEndless = useGameStore((s) => s.bestStageEndless)
 
   const filledLen = filledWords.reduce((sum, w) => sum + w.length, 0)
   const remaining = targetLength - filledLen
   const isWin = status === 'won'
+  const isEndless = mode === 'endless'
+  const lbValue = isEndless ? stage : score
+  const lbBest = isEndless ? bestStageEndless : bestScoreQuick
+  const lbLabel = isEndless ? 'שלב' : 'נק׳'
 
   if (status !== 'won' && status !== 'lost') return null
 
@@ -488,7 +599,7 @@ function ResultScreen() {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6"
+      className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6 overflow-y-auto py-8"
     >
       {isWin ? (
         <>
@@ -555,6 +666,9 @@ function ResultScreen() {
           </motion.div>
         </>
       )}
+
+      <LeaderboardSection mode={mode} value={lbValue} personalBest={lbBest}
+        personalLabel={lbLabel} active={status === 'won' || status === 'lost'} />
 
       <div className="flex flex-col gap-3 w-full max-w-[250px]">
         <motion.button
@@ -814,6 +928,13 @@ function GridResultScreen() {
   const startGrid = useGridStore((s) => s.startGrid)
   const nextGridStage = useGridStore((s) => s.nextGridStage)
   const goHome = useGridStore((s) => s.goHome)
+  const difficulty = useGridStore((s) => s.difficulty)
+  const bestStageGrid = useGridStore((s) => s.bestStageGrid)
+  const bestStageShapes = useGridStore((s) => s.bestStageShapes)
+
+  const isShapes = difficulty === 'shapes'
+  const lbMode = isShapes ? 'shapes' : 'grid'
+  const lbBest = isShapes ? bestStageShapes : bestStageGrid
 
   if (status === 'stage_clear') {
     return (
@@ -844,12 +965,16 @@ function GridResultScreen() {
   if (status === 'lost') {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6">
+        className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6 overflow-y-auto py-8">
         <motion.div initial={{ scale: 1.5 }} animate={{ scale: 1, rotate: [0, -5, 5, -3, 0] }}
           transition={{ duration: 0.5 }} className="text-5xl mb-4">💔</motion.div>
         <h1 className="text-2xl font-bold text-gray-300 mb-2">נגמר הזמן</h1>
         <p className="text-lg text-gray-400 mb-1">{score} :ניקוד</p>
-        <p className="text-gray-500 mb-6">הגעת לשלב {stage}</p>
+        <p className="text-gray-500 mb-4">הגעת לשלב {stage}</p>
+
+        <LeaderboardSection mode={lbMode} value={stage} personalBest={lbBest}
+          personalLabel="שלב" active={true} />
+
         <div className="flex flex-col gap-3 w-full max-w-[250px]">
           <motion.button whileTap={{ scale: 0.95 }} onClick={() => startGrid()}
             className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg shadow-accent/30">!שחק שוב</motion.button>
@@ -1830,17 +1955,17 @@ function ScoreRushResult() {
 
   if (status !== 'lost') return null
 
-  const isNewBest = score >= bestScoreRush && score > 0
-
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-      className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6">
-      <div className="text-5xl mb-4">{isNewBest ? '🏆' : '⏱️'}</div>
+      className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6 overflow-y-auto py-8">
+      <div className="text-5xl mb-4">⏱️</div>
       <h1 className="text-2xl font-bold text-gray-300 mb-1">!נגמר הזמן</h1>
-      {isNewBest && <p className="text-success font-bold mb-2">!שיא חדש</p>}
       <p className="text-3xl font-bold text-accent mb-1">{score} נק׳</p>
-      <p className="text-gray-400 mb-1">{srTotalWords} מילים</p>
-      <p className="text-gray-500 text-sm mb-6">שיא: {bestScoreRush} נק׳</p>
+      <p className="text-gray-400 mb-4">{srTotalWords} מילים</p>
+
+      <LeaderboardSection mode="score_rush" value={score} personalBest={bestScoreRush}
+        personalLabel="נק׳" active={status === 'lost'} />
+
       <div className="flex flex-col gap-3 w-full max-w-[250px]">
         <motion.button whileTap={{ scale: 0.95 }} onClick={() => startGame('score_rush')}
           className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg shadow-accent/30">
