@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fitword-v1'
+const CACHE_NAME = 'xacto-v2'
 const SHELL_URLS = [
   '/',
 ]

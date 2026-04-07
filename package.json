@@ -1,6 +1,6 @@
 {
-  "name": "word-game",
-  "version": "1.0.0",
+  "name": "xacto",
+  "version": "2.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -16,7 +16,6 @@
     "firebase": "^12.11.0",
     "framer-motion": "^12.38.0",
     "next": "^14.2.35",
-    "playwright": "^1.58.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^5.0.12"

@@ -1,22 +1,67 @@
 {
-  "name": "Exacto",
-  "short_name": "Exacto",
-  "description": "Hebrew word game — fill the row!",
+  "id": "/",
+  "name": "xActo — משחק מילים",
+  "short_name": "xActo",
+  "description": "משחק מילים בעברית — מלא את השורה!",
+  "lang": "he",
+  "dir": "rtl",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "portrait",
   "theme_color": "#7C3AED",
   "background_color": "#0F0F1A",
+  "categories": ["games", "entertainment"],
   "icons": [
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/01-start.jpg",
+      "sizes": "390x844",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "מסך הפתיחה של xActo"
+    },
+    {
+      "src": "/screenshots/02-game.jpg",
+      "sizes": "390x844",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "משחק מהיר פעיל"
+    },
+    {
+      "src": "/screenshots/03-building.jpg",
+      "sizes": "390x844",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "בניית מילה מאותיות"
+    },
+    {
+      "src": "/screenshots/04-feedback.jpg",
+      "sizes": "390x844",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "משוב על מילה תקינה"
+    },
+    {
+      "src": "/screenshots/05-valid-word.jpg",
+      "sizes": "390x844",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "מילה שנוספה לשורה"
     }
   ]
 }

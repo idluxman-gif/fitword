@@ -2320,17 +2320,24 @@ function PreGameScreen({ modeKey, onStart, onBack }: {
   const [board, setBoard] = useState<LeaderboardEntry[]>([])
   const info = MODE_INFO[modeKey]
   const MEDALS = ['🥇', '🥈', '🥉']
+  const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([])
 
   useEffect(() => {
     if (info) fetchLeaderboard(info.lbMode).then(setBoard)
   }, [modeKey])
 
+  // Cleanup countdown timers on unmount
+  useEffect(() => {
+    return () => { timerRefs.current.forEach(clearTimeout) }
+  }, [])
+
   const handleStart = () => {
     setCountdown(3)
-    const t1 = setTimeout(() => setCountdown(2), 1000)
-    const t2 = setTimeout(() => setCountdown(1), 2000)
-    const t3 = setTimeout(() => { setCountdown(null); onStart() }, 3000)
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
+    timerRefs.current = [
+      setTimeout(() => setCountdown(2), 1000),
+      setTimeout(() => setCountdown(1), 2000),
+      setTimeout(() => { setCountdown(null); onStart() }, 3000),
+    ]
   }
 
   if (!info) return null
@@ -2491,7 +2498,7 @@ function HomeScreen() {
         animate={{ y: 0, opacity: 1 }}
         className="text-5xl font-bold text-accent mb-2"
       >
-        Exacto
+        xActo
       </motion.h1>
       <motion.p
         initial={{ opacity: 0 }}
