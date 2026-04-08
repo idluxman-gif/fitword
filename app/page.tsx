@@ -940,10 +940,12 @@ function GridResultScreen() {
   const difficulty = useGridStore((s) => s.difficulty)
   const bestStageGrid = useGridStore((s) => s.bestStageGrid)
   const bestScoreShapes = useGridStore((s) => s.bestScoreShapes)
+  const bestScoreShapesV2 = useGridStore((s) => s.bestScoreShapesV2)
 
   const isShapes = difficulty === 'shapes'
-  const lbMode = isShapes ? 'shapes' : 'grid'
-  const lbBest = isShapes ? bestScoreShapes : bestStageGrid
+  const isShapesV2 = difficulty === 'shapes_v2'
+  const lbMode = isShapesV2 ? 'shapes_v2' : isShapes ? 'shapes' : 'grid'
+  const lbBest = isShapesV2 ? bestScoreShapesV2 : isShapes ? bestScoreShapes : bestStageGrid
 
   if (status === 'stage_clear') {
     return (
@@ -981,8 +983,8 @@ function GridResultScreen() {
         <p className="text-lg text-gray-400 mb-1">{score} :ניקוד</p>
         <p className="text-gray-500 mb-4">הגעת לשלב {stage}</p>
 
-        <LeaderboardSection mode={lbMode} value={isShapes ? score : stage} personalBest={lbBest}
-          personalLabel={isShapes ? 'נק׳' : 'שלב'} active={true} />
+        <LeaderboardSection mode={lbMode} value={(isShapes || isShapesV2) ? score : stage} personalBest={lbBest}
+          personalLabel={(isShapes || isShapesV2) ? 'נק׳' : 'שלב'} active={true} />
 
         <div className="flex flex-col gap-3 w-full max-w-[250px]">
           <motion.button whileTap={{ scale: 0.95 }} onClick={() => startGrid()}
@@ -2359,7 +2361,8 @@ const MODE_INFO: Record<string, {
 }> = {
   score_rush: { emoji: '🔥', title: 'ריצת ניקוד',  desc: 'שלח מילים ברצף ואסוף ניקוד כמה שאפשר. מילה ארוכה = יותר זמן. ניצחון בניקוד גבוה!',           lbMode: 'score_rush', lbLabel: 'נק׳' },
   grid:       { emoji: '🔲', title: 'רשת',          desc: 'מלא לוח רשת בצלב-מילים. הנח מילים לימין ולמטה כך שיחפפו בחרות. מלא את כל הלוח!',            lbMode: 'grid',       lbLabel: 'שלב' },
-  shapes:     { emoji: '🔷', title: 'צורות',        desc: 'כמו רשת, רק שהלוח בצורה מיוחדת. השלם את הצורה עם מילים בכל כיוון. האתגר הגדול!',              lbMode: 'shapes',     lbLabel: 'שלב' },
+  shapes:     { emoji: '🔷', title: 'צורות',        desc: 'כמו רשת, רק שהלוח בצורה מיוחדת. השלם את הצורה עם מילים בכל כיוון. האתגר הגדול!',              lbMode: 'shapes',     lbLabel: 'נק׳' },
+  shapes_v2:  { emoji: '💥', title: 'צורות V2',     desc: 'מלא שורות ועמודות כדי לפוצץ אותן! כל שורה/עמודה מלאה מתפוצצת ונותנת בונוס נקודות. פנה את הלוח!', lbMode: 'shapes_v2',  lbLabel: 'נק׳' },
 }
 
 function PreGameScreen({ modeKey, onStart, onBack }: {
@@ -2485,6 +2488,7 @@ function HomeScreen() {
   const bestScoreRush = useGameStore((s) => s.bestScoreRush)
   const bestStageGrid = useGridStore((s) => s.bestStageGrid)
   const bestScoreShapes = useGridStore((s) => s.bestScoreShapes)
+  const bestScoreShapesV2 = useGridStore((s) => s.bestScoreShapesV2)
   const startGrid = useGridStore((s) => s.startGrid)
   const createRoom = useMultiplayerStore((s) => s.createRoom)
   const joinRoom = useMultiplayerStore((s) => s.joinRoom)
@@ -2493,13 +2497,15 @@ function HomeScreen() {
     score_rush: 'ריצת ניקוד',
     grid: '🔲 רשת',
     shapes: '🔷 צורות',
+    shapes_v2: '💥 צורות V2',
   }
 
   const modes: { key: string; label: string; best: string; delay: number }[] = [
     { key: 'score_rush', label: MODE_LABELS.score_rush, best: bestScoreRush > 0 ? `${bestScoreRush} נק׳` : '—', delay: 0.3 },
     { key: 'grid', label: MODE_LABELS.grid, best: bestStageGrid > 0 ? `שלב ${bestStageGrid}` : '—', delay: 0.4 },
     { key: 'shapes', label: MODE_LABELS.shapes, best: bestScoreShapes > 0 ? `${bestScoreShapes} נק׳` : '—', delay: 0.5 },
-    { key: 'designer', label: '🎨 עיצוב שלבים', best: '', delay: 0.6 },
+    { key: 'shapes_v2', label: MODE_LABELS.shapes_v2, best: bestScoreShapesV2 > 0 ? `${bestScoreShapesV2} נק׳` : '—', delay: 0.6 },
+    { key: 'designer', label: '🎨 עיצוב שלבים', best: '', delay: 0.7 },
   ]
 
   const openDesigner = useDesignerStore((s) => s.openHub)
@@ -2515,6 +2521,7 @@ function HomeScreen() {
     setPreGameMode(null)
     if (key === 'grid') startGrid('normal')
     else if (key === 'shapes') startGrid('shapes')
+    else if (key === 'shapes_v2') startGrid('shapes_v2')
     else startGame(key as GameMode)
   }
 

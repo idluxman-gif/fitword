@@ -5,7 +5,7 @@ import { FeedbackMessage } from './store'
 
 export type Direction = 'left' | 'up' | 'right' | 'down'
 export type GridStatus = 'idle' | 'playing' | 'won' | 'lost' | 'stage_clear'
-export type GridDifficulty = 'normal' | 'shapes'
+export type GridDifficulty = 'normal' | 'shapes' | 'shapes_v2'
 
 const DIRECTION_CYCLE: Direction[] = ['right', 'down', 'left', 'up']
 
@@ -297,6 +297,7 @@ interface GridState {
   muted: boolean
   bestStageGrid: number
   bestScoreShapes: number
+  bestScoreShapesV2: number
 
   // Actions
   initBest: () => void
@@ -381,18 +382,20 @@ export const useGridStore = create<GridState>((set, get) => ({
   muted: false,
   bestStageGrid: 0,
   bestScoreShapes: 0,
+  bestScoreShapesV2: 0,
 
   initBest: () => {
     set({
       bestStageGrid: loadBest('bestStageGrid'),
       bestScoreShapes: loadBest('bestScoreShapes'),
+      bestScoreShapesV2: loadBest('bestScoreShapesV2'),
       muted: typeof window !== 'undefined' && localStorage.getItem('muted') === 'true',
     })
   },
 
   startGrid: (difficulty: GridDifficulty = 'normal') => {
     const letters = pickWeightedLetters(10)
-    if (difficulty === 'shapes') {
+    if (difficulty === 'shapes' || difficulty === 'shapes_v2') {
       const { grid, rows, cols } = pickShape(1)
       set({
         difficulty,
@@ -434,7 +437,7 @@ export const useGridStore = create<GridState>((set, get) => ({
   },
 
   startGridWithLetters: (difficulty: GridDifficulty, letters: string[], stage: number = 1) => {
-    if (difficulty === 'shapes') {
+    if (difficulty === 'shapes' || difficulty === 'shapes_v2') {
       const { grid, rows, cols } = pickShape(stage)
       set({
         difficulty, gridRows: rows, gridCols: cols, grid,
@@ -514,7 +517,16 @@ export const useGridStore = create<GridState>((set, get) => ({
   nextGridStageWithLetters: (letters: string[]) => {
     const { stage, score, difficulty } = get()
     const newStage = stage + 1
-    if (difficulty === 'shapes') {
+    if (difficulty === 'shapes_v2') {
+      saveBest('bestScoreShapesV2', score)
+      const { grid, rows, cols } = pickShape(newStage)
+      set({
+        gridRows: rows, gridCols: cols, grid, placedWords: [], selectedCell: null, direction: 'right' as Direction,
+        letters, currentWord: '', usedTileIndices: [], score: score + 50, timeLeft: 120,
+        status: 'playing' as GridStatus, feedback: null, stage: newStage,
+        bestScoreShapesV2: Math.max(get().bestScoreShapesV2, score),
+      })
+    } else if (difficulty === 'shapes') {
       saveBest('bestScoreShapes', score)
       const { grid, rows, cols } = pickShape(newStage)
       set({
@@ -541,7 +553,16 @@ export const useGridStore = create<GridState>((set, get) => ({
     const newStage = stage + 1
     const letters = pickWeightedLetters(10)
 
-    if (difficulty === 'shapes') {
+    if (difficulty === 'shapes_v2') {
+      saveBest('bestScoreShapesV2', score)
+      const { grid, rows, cols } = pickShape(newStage)
+      set({
+        gridRows: rows, gridCols: cols, grid, placedWords: [], selectedCell: null, direction: 'right',
+        letters, currentWord: '', usedTileIndices: [], score: score + 50, timeLeft: 120,
+        status: 'playing', feedback: null, stage: newStage,
+        bestScoreShapesV2: Math.max(get().bestScoreShapesV2, score),
+      })
+    } else if (difficulty === 'shapes') {
       saveBest('bestScoreShapes', score)
       const { grid, rows, cols } = pickShape(newStage)
       set({
@@ -651,6 +672,70 @@ export const useGridStore = create<GridState>((set, get) => ({
 
     const wordScore = scoreWord(currentWord)
     const newPlacedWords = [...placedWords, { word: currentWord, row: selectedCell.row, col: selectedCell.col, direction, cells }]
+
+    // ── Shapes V2: explosion mechanic ─────────────────────────────────────
+    if (get().difficulty === 'shapes_v2') {
+      // Collect cells to explode: rows and cols where ALL active cells are filled
+      const toExplode = new Set<string>()
+      for (let r = 0; r < gridRows; r++) {
+        const activeCols = []
+        for (let c = 0; c < gridCols; c++) {
+          if (newGrid[r][c].active) activeCols.push(c)
+        }
+        if (activeCols.length > 0 && activeCols.every((c) => newGrid[r][c].filled)) {
+          activeCols.forEach((c) => toExplode.add(`${r},${c}`))
+        }
+      }
+      for (let c = 0; c < gridCols; c++) {
+        const activeRows = []
+        for (let r = 0; r < gridRows; r++) {
+          if (newGrid[r][c].active) activeRows.push(r)
+        }
+        if (activeRows.length > 0 && activeRows.every((r) => newGrid[r][c].filled)) {
+          activeRows.forEach((r) => toExplode.add(`${r},${c}`))
+        }
+      }
+
+      if (toExplode.size > 0) {
+        // Deactivate exploded cells
+        Array.from(toExplode).forEach((key) => {
+          const [r, c] = key.split(',').map(Number)
+          newGrid[r][c] = { char: null, filled: false, active: false, blocked: false }
+        })
+        const explodeBonus = toExplode.size * 10
+        const totalScore = score + wordScore + explodeBonus
+        const remaining = newGrid.flat().filter((cell) => cell.active).length
+
+        if (remaining === 0) {
+          // All cells exploded — stage clear!
+          saveBest('bestScoreShapesV2', totalScore)
+          set({
+            grid: newGrid, placedWords: newPlacedWords,
+            currentWord: '', usedTileIndices: [],
+            score: totalScore, status: 'stage_clear',
+            feedback: { text: `!פיצוץ מושלם 💥 +${explodeBonus} נק׳`, type: 'success' },
+            bestScoreShapesV2: Math.max(get().bestScoreShapesV2, totalScore),
+          })
+        } else {
+          set({
+            grid: newGrid, placedWords: newPlacedWords,
+            currentWord: '', usedTileIndices: [],
+            score: totalScore,
+            feedback: { text: `!פיצוץ 💥 +${explodeBonus} נק׳`, type: 'success' },
+          })
+        }
+        return
+      }
+
+      // No explosion this move — place word normally
+      set({
+        grid: newGrid, placedWords: newPlacedWords,
+        currentWord: '', usedTileIndices: [],
+        score: score + wordScore,
+        feedback: { text: `+${wordScore} נק׳ ✓`, type: 'success' },
+      })
+      return
+    }
 
     // Win check: all playable cells (active, not blocked) are filled
     // Blocked cells are frozen from generation time — never change mid-game
