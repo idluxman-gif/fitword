@@ -28,7 +28,6 @@ function useInit() {
 // ─── Timer Hook ───
 function useTimer() {
   const tick = useGameStore((s) => s.tick)
-  const checkStuck = useGameStore((s) => s.checkStuck)
   const status = useGameStore((s) => s.status)
   const timeLeft = useGameStore((s) => s.timeLeft)
   const muted = useGameStore((s) => s.muted)
@@ -39,13 +38,12 @@ function useTimer() {
     if (status === 'playing') {
       intervalRef.current = setInterval(() => {
         tick()
-        checkStuck()
       }, 1000)
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
-  }, [status, tick, checkStuck])
+  }, [status, tick])
 
   // Timer warning beep each second in the last 10s
   useEffect(() => {
@@ -71,14 +69,13 @@ function useTimer() {
         if (currentStatus === 'playing') {
           intervalRef.current = setInterval(() => {
             tick()
-            checkStuck()
           }, 1000)
         }
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [tick, checkStuck])
+  }, [tick])
 }
 
 // ─── Mute Button ───
@@ -138,8 +135,6 @@ function TopBar() {
   const stage = useGameStore((s) => s.stage)
   const scoreTarget = useGameStore((s) => s.scoreTarget)
   const timerFlash = useGameStore((s) => s.timerFlash)
-  const swapsAvailable = useGameStore((s) => s.swapsAvailable)
-  const useLetterSwap = useGameStore((s) => s.useLetterSwap)
   const status = useGameStore((s) => s.status)
 
   const filledLen = filledWords.reduce((sum, w) => sum + w.length, 0)
@@ -180,12 +175,10 @@ function TopBar() {
           </AnimatePresence>
         </div>
 
-        {/* Stage indicator for multi-stage modes */}
-        {mode !== 'quick' && (
-          <div className="text-xs text-gray-400">
-            שלב {stage}
-          </div>
-        )}
+        {/* Stage indicator */}
+        <div className="text-xs text-gray-400">
+          שלב {stage}
+        </div>
 
         {/* Score */}
         <div className="text-lg font-bold text-accent flex items-baseline gap-1">
@@ -217,17 +210,6 @@ function TopBar() {
       </AnimatePresence>
 
       {/* Swap button for Endless */}
-      {mode === 'endless' && status === 'playing' && swapsAvailable > 0 && (
-        <motion.button
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={useLetterSwap}
-          className="text-xs px-3 py-1 rounded-full bg-accent/20 text-accent border border-accent/40"
-        >
-          🔄 החלף אותיות ({swapsAvailable})
-        </motion.button>
-      )}
     </div>
   )
 }
@@ -602,22 +584,14 @@ function ResultScreen() {
   const status = useGameStore((s) => s.status)
   const score = useGameStore((s) => s.score)
   const timeLeft = useGameStore((s) => s.timeLeft)
-  const targetLength = useGameStore((s) => s.targetLength)
   const filledWords = useGameStore((s) => s.filledWords)
   const mode = useGameStore((s) => s.mode)
   const stage = useGameStore((s) => s.stage)
   const startGame = useGameStore((s) => s.startGame)
   const goHome = useGameStore((s) => s.goHome)
-  const bestScoreQuick = useGameStore((s) => s.bestScoreQuick)
-  const bestStageEndless = useGameStore((s) => s.bestStageEndless)
+  const bestScoreRush = useGameStore((s) => s.bestScoreRush)
 
-  const filledLen = filledWords.reduce((sum, w) => sum + w.length, 0)
-  const remaining = targetLength - filledLen
   const isWin = status === 'won'
-  const isEndless = mode === 'endless'
-  const lbValue = isEndless ? stage : score
-  const lbBest = isEndless ? bestStageEndless : bestScoreQuick
-  const lbLabel = isEndless ? 'שלב' : 'נק׳'
 
   if (status !== 'won' && status !== 'lost') return null
 
@@ -688,7 +662,7 @@ function ResultScreen() {
             animate={{ y: 0, opacity: 1 }}
             className="text-2xl font-bold text-gray-300 mb-2"
           >
-            {mode !== 'quick' ? `סיום בשלב ${stage}` : `נשארו ${remaining} תווים`}
+            {`סיום בשלב ${stage}`}
           </motion.h1>
           <motion.div
             initial={{ y: 20, opacity: 0 }}
@@ -702,8 +676,8 @@ function ResultScreen() {
         </>
       )}
 
-      <LeaderboardSection mode={mode} value={lbValue} personalBest={lbBest}
-        personalLabel={lbLabel} active={status === 'won' || status === 'lost'} />
+      <LeaderboardSection mode={mode} value={score} personalBest={bestScoreRush}
+        personalLabel="נק׳" active={status === 'won' || status === 'lost'} />
 
       <div className="flex flex-col gap-3 w-full max-w-[250px]">
         <motion.button
@@ -965,11 +939,11 @@ function GridResultScreen() {
   const goHome = useGridStore((s) => s.goHome)
   const difficulty = useGridStore((s) => s.difficulty)
   const bestStageGrid = useGridStore((s) => s.bestStageGrid)
-  const bestStageShapes = useGridStore((s) => s.bestStageShapes)
+  const bestScoreShapes = useGridStore((s) => s.bestScoreShapes)
 
   const isShapes = difficulty === 'shapes'
   const lbMode = isShapes ? 'shapes' : 'grid'
-  const lbBest = isShapes ? bestStageShapes : bestStageGrid
+  const lbBest = isShapes ? bestScoreShapes : bestStageGrid
 
   if (status === 'stage_clear') {
     return (
@@ -1007,8 +981,8 @@ function GridResultScreen() {
         <p className="text-lg text-gray-400 mb-1">{score} :ניקוד</p>
         <p className="text-gray-500 mb-4">הגעת לשלב {stage}</p>
 
-        <LeaderboardSection mode={lbMode} value={stage} personalBest={lbBest}
-          personalLabel="שלב" active={true} />
+        <LeaderboardSection mode={lbMode} value={isShapes ? score : stage} personalBest={lbBest}
+          personalLabel={isShapes ? 'נק׳' : 'שלב'} active={true} />
 
         <div className="flex flex-col gap-3 w-full max-w-[250px]">
           <motion.button whileTap={{ scale: 0.95 }} onClick={() => startGrid()}
@@ -2383,8 +2357,6 @@ function CustomPackGame() {
 const MODE_INFO: Record<string, {
   emoji: string; title: string; desc: string; lbMode: string; lbLabel: string
 }> = {
-  quick:      { emoji: '⚡', title: 'משחק מהיר',    desc: 'קבל 7 אותיות ומלא שורה של 13–16 תווים במילים לפני שנגמר הזמן. מלא בדיוק — Perfect Fit!', lbMode: 'quick',      lbLabel: 'נק׳' },
-  endless:    { emoji: '♾️', title: 'אינסוף',       desc: 'מלא שורות שלב אחרי שלב. בכל שלב פחות אותיות וקשה יותר. כמה שלבים תצליח להגיע?',            lbMode: 'endless',    lbLabel: 'שלב' },
   score_rush: { emoji: '🔥', title: 'ריצת ניקוד',  desc: 'שלח מילים ברצף ואסוף ניקוד כמה שאפשר. מילה ארוכה = יותר זמן. ניצחון בניקוד גבוה!',           lbMode: 'score_rush', lbLabel: 'נק׳' },
   grid:       { emoji: '🔲', title: 'רשת',          desc: 'מלא לוח רשת בצלב-מילים. הנח מילים לימין ולמטה כך שיחפפו בחרות. מלא את כל הלוח!',            lbMode: 'grid',       lbLabel: 'שלב' },
   shapes:     { emoji: '🔷', title: 'צורות',        desc: 'כמו רשת, רק שהלוח בצורה מיוחדת. השלם את הצורה עם מילים בכל כיוון. האתגר הגדול!',              lbMode: 'shapes',     lbLabel: 'שלב' },
@@ -2510,30 +2482,24 @@ function HomeScreen() {
   const [joinError, setJoinError] = useState('')
   const [preGameMode, setPreGameMode] = useState<string | null>(null)
   const startGame = useGameStore((s) => s.startGame)
-  const bestScoreQuick = useGameStore((s) => s.bestScoreQuick)
-  const bestStageEndless = useGameStore((s) => s.bestStageEndless)
   const bestScoreRush = useGameStore((s) => s.bestScoreRush)
   const bestStageGrid = useGridStore((s) => s.bestStageGrid)
-  const bestStageShapes = useGridStore((s) => s.bestStageShapes)
+  const bestScoreShapes = useGridStore((s) => s.bestScoreShapes)
   const startGrid = useGridStore((s) => s.startGrid)
   const createRoom = useMultiplayerStore((s) => s.createRoom)
   const joinRoom = useMultiplayerStore((s) => s.joinRoom)
 
   const MODE_LABELS: Record<string, string> = {
-    quick: 'משחק מהיר',
-    endless: 'אינסוף',
     score_rush: 'ריצת ניקוד',
     grid: '🔲 רשת',
     shapes: '🔷 צורות',
   }
 
   const modes: { key: string; label: string; best: string; delay: number }[] = [
-    { key: 'quick', label: MODE_LABELS.quick, best: bestScoreQuick > 0 ? `${bestScoreQuick} נק׳` : '—', delay: 0.3 },
-    { key: 'endless', label: MODE_LABELS.endless, best: bestStageEndless > 0 ? `שלב ${bestStageEndless}` : '—', delay: 0.4 },
-    { key: 'score_rush', label: MODE_LABELS.score_rush, best: bestScoreRush > 0 ? `${bestScoreRush} נק׳` : '—', delay: 0.5 },
-    { key: 'grid', label: MODE_LABELS.grid, best: bestStageGrid > 0 ? `שלב ${bestStageGrid}` : '—', delay: 0.6 },
-    { key: 'shapes', label: MODE_LABELS.shapes, best: bestStageShapes > 0 ? `שלב ${bestStageShapes}` : '—', delay: 0.7 },
-    { key: 'designer', label: '🎨 עיצוב שלבים', best: '', delay: 0.8 },
+    { key: 'score_rush', label: MODE_LABELS.score_rush, best: bestScoreRush > 0 ? `${bestScoreRush} נק׳` : '—', delay: 0.3 },
+    { key: 'grid', label: MODE_LABELS.grid, best: bestStageGrid > 0 ? `שלב ${bestStageGrid}` : '—', delay: 0.4 },
+    { key: 'shapes', label: MODE_LABELS.shapes, best: bestScoreShapes > 0 ? `${bestScoreShapes} נק׳` : '—', delay: 0.5 },
+    { key: 'designer', label: '🎨 עיצוב שלבים', best: '', delay: 0.6 },
   ]
 
   const openDesigner = useDesignerStore((s) => s.openHub)

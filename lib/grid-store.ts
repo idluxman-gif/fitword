@@ -232,8 +232,13 @@ function getShapeDifficulty(stage: number): { targetCells: number; maxSize: numb
  */
 export function generateShapeForStage(stage: number): { shape: boolean[][], rows: number, cols: number } {
   const { targetCells, maxSize } = getShapeDifficulty(stage)
-  const raw = generateRandomShape(targetCells, maxSize)
-  const sanitized = sanitizeShape(raw)
+  let sanitized: boolean[][]
+  let attempts = 0
+  do {
+    const raw = generateRandomShape(Math.max(targetCells, MIN_SHAPE_BLOCKS + 2), maxSize)
+    sanitized = sanitizeShape(raw)
+    attempts++
+  } while (sanitized.flat().filter(Boolean).length < MIN_SHAPE_BLOCKS && attempts < 20)
   return { shape: sanitized, rows: sanitized.length, cols: sanitized[0]?.length || 1 }
 }
 
@@ -246,9 +251,18 @@ export function generateGridForStage(stage: number): { shape: boolean[][], rows:
   return { shape, rows, cols }
 }
 
+const MIN_SHAPE_BLOCKS = 12
+
 function pickShape(stage: number): { grid: GridCell[][], rows: number, cols: number } {
   const { targetCells, maxSize } = getShapeDifficulty(stage)
-  const shape = generateRandomShape(targetCells, maxSize)
+  // Retry until the sanitized shape has at least MIN_SHAPE_BLOCKS active cells
+  let shape: boolean[][]
+  let attempts = 0
+  do {
+    shape = generateRandomShape(Math.max(targetCells, MIN_SHAPE_BLOCKS + 2), maxSize)
+    attempts++
+  } while (shape.flat().filter(Boolean).length < MIN_SHAPE_BLOCKS && attempts < 20)
+
   const rows = shape.length
   const cols = shape[0]?.length || 1
   const grid: GridCell[][] = shape.map((row) =>
@@ -282,7 +296,7 @@ interface GridState {
   stage: number
   muted: boolean
   bestStageGrid: number
-  bestStageShapes: number
+  bestScoreShapes: number
 
   // Actions
   initBest: () => void
@@ -366,12 +380,12 @@ export const useGridStore = create<GridState>((set, get) => ({
   stage: 1,
   muted: false,
   bestStageGrid: 0,
-  bestStageShapes: 0,
+  bestScoreShapes: 0,
 
   initBest: () => {
     set({
       bestStageGrid: loadBest('bestStageGrid'),
-      bestStageShapes: loadBest('bestStageShapes'),
+      bestScoreShapes: loadBest('bestScoreShapes'),
       muted: typeof window !== 'undefined' && localStorage.getItem('muted') === 'true',
     })
   },
@@ -500,18 +514,17 @@ export const useGridStore = create<GridState>((set, get) => ({
   nextGridStageWithLetters: (letters: string[]) => {
     const { stage, score, difficulty } = get()
     const newStage = stage + 1
-    const bestKey = difficulty === 'shapes' ? 'bestStageShapes' : 'bestStageGrid'
-    saveBest(bestKey, stage)
-
     if (difficulty === 'shapes') {
+      saveBest('bestScoreShapes', score)
       const { grid, rows, cols } = pickShape(newStage)
       set({
         gridRows: rows, gridCols: cols, grid, placedWords: [], selectedCell: null, direction: 'right' as Direction,
         letters, currentWord: '', usedTileIndices: [], score: score + 50, timeLeft: 120,
         status: 'playing' as GridStatus, feedback: null, stage: newStage,
-        bestStageShapes: Math.max(get().bestStageShapes, stage),
+        bestScoreShapes: Math.max(get().bestScoreShapes, score),
       })
     } else {
+      saveBest('bestStageGrid', stage)
       const { rows, cols } = getGridSize(newStage)
       set({
         gridRows: rows, gridCols: cols, grid: createEmptyGrid(rows, cols),
@@ -527,16 +540,15 @@ export const useGridStore = create<GridState>((set, get) => ({
     const { stage, score, difficulty } = get()
     const newStage = stage + 1
     const letters = pickWeightedLetters(10)
-    const bestKey = difficulty === 'shapes' ? 'bestStageShapes' : 'bestStageGrid'
-    saveBest(bestKey, stage)
 
     if (difficulty === 'shapes') {
+      saveBest('bestScoreShapes', score)
       const { grid, rows, cols } = pickShape(newStage)
       set({
         gridRows: rows, gridCols: cols, grid, placedWords: [], selectedCell: null, direction: 'right',
         letters, currentWord: '', usedTileIndices: [], score: score + 50, timeLeft: 120,
         status: 'playing', feedback: null, stage: newStage,
-        bestStageShapes: Math.max(get().bestStageShapes, stage),
+        bestScoreShapes: Math.max(get().bestScoreShapes, score),
       })
     } else {
       const { rows, cols } = getGridSize(newStage)
@@ -646,8 +658,12 @@ export const useGridStore = create<GridState>((set, get) => ({
 
     if (playable === 0) {
       const totalScore = score + wordScore
-      const bestKey = get().difficulty === 'shapes' ? 'bestStageShapes' : 'bestStageGrid'
-      saveBest(bestKey, get().stage)
+      const isShapes = get().difficulty === 'shapes'
+      if (isShapes) {
+        saveBest('bestScoreShapes', totalScore)
+      } else {
+        saveBest('bestStageGrid', get().stage)
+      }
       set({
         grid: newGrid,
         placedWords: newPlacedWords,
@@ -656,7 +672,10 @@ export const useGridStore = create<GridState>((set, get) => ({
         score: totalScore,
         status: 'stage_clear',
         feedback: { text: `!הרשת מלאה 🎉 +50 בונוס שלב`, type: 'success' },
-        [bestKey]: Math.max(get()[bestKey as keyof GridState] as number, get().stage),
+        ...(isShapes
+          ? { bestScoreShapes: Math.max(get().bestScoreShapes, totalScore) }
+          : { bestStageGrid: Math.max(get().bestStageGrid, get().stage) }
+        ),
       })
     } else {
       set({
