@@ -1037,6 +1037,19 @@ function useGridTimer() {
   }, [status, tick])
 
   useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        if (ref.current) { clearInterval(ref.current); ref.current = null }
+      } else {
+        const s = useGridStore.getState().status
+        if (s === 'playing') ref.current = setInterval(tick, 1000)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [tick])
+
+  useEffect(() => {
     if (status === 'playing' && timeLeft > 0 && timeLeft <= 10) {
       playTimerWarning(muted)
     }
@@ -1670,6 +1683,21 @@ function MultiplayerGridBridge() {
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [gridStatus, gridTick])
+
+  // Pause multiplayer grid timer when app is backgrounded
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
+      } else {
+        if (useGridStore.getState().status === 'playing') {
+          timerRef.current = setInterval(gridTick, 1000)
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [gridTick])
 
   // Track accumulated base score from previous levels
   const baseScoreRef = useRef(0)
