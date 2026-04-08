@@ -2739,6 +2739,7 @@ function useBackButton() {
   const goHome = useGameStore((s) => s.goHome)
   const gridGoHome = useGridStore((s) => s.goHome)
   const leaveGame = useMultiplayerStore((s) => s.leaveGame)
+  const designerGoHome = useDesignerStore((s) => s.goHome)
 
   const [showBackLeave, setShowBackLeave] = useState(false)
   _setShowBackLeave = setShowBackLeave
@@ -2799,12 +2800,15 @@ function useBackButton() {
     // Check all stores — multiplayer first since it may wrap grid/row modes
     const mpState = useMultiplayerStore.getState().status
     const gridState = useGridStore.getState().status
+    const designerState = useDesignerStore.getState().status
     if (mpState !== 'idle') {
       leaveGame()
       // Also reset grid store if it was active under multiplayer
       if (gridState !== 'idle') gridGoHome()
     } else if (gridState !== 'idle') {
       gridGoHome()
+    } else if (designerState !== 'idle') {
+      designerGoHome()
     } else {
       goHome()
     }
