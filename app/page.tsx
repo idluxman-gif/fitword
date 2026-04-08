@@ -6,7 +6,7 @@ import { useGameStore, type GameMode } from '@/lib/store'
 import { useGridStore, type Direction } from '@/lib/grid-store'
 import { useMultiplayerStore, type MultiplayerStatus } from '@/lib/multiplayer-store'
 import { useDesignerStore, type CustomLevel, type LevelPack } from '@/lib/designer-store'
-import { playTileTap, playValidWord, playInvalidWord, playPerfectFit, playStageClear } from '@/lib/sound'
+import { playTileTap, playValidWord, playInvalidWord, playPerfectFit, playStageClear, playTimerWarning } from '@/lib/sound'
 import { fetchLeaderboard, checkQualifies, submitScore, type LeaderboardEntry } from '@/lib/leaderboard'
 
 // ─── Init Hook ───
@@ -30,6 +30,8 @@ function useTimer() {
   const tick = useGameStore((s) => s.tick)
   const checkStuck = useGameStore((s) => s.checkStuck)
   const status = useGameStore((s) => s.status)
+  const timeLeft = useGameStore((s) => s.timeLeft)
+  const muted = useGameStore((s) => s.muted)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const pausedAtRef = useRef<number | null>(null)
 
@@ -44,6 +46,13 @@ function useTimer() {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
   }, [status, tick, checkStuck])
+
+  // Timer warning beep each second in the last 10s
+  useEffect(() => {
+    if (status === 'playing' && timeLeft > 0 && timeLeft <= 10) {
+      playTimerWarning(muted)
+    }
+  }, [timeLeft, status, muted])
 
   // Pause timer when app is backgrounded, resume when foregrounded
   useEffect(() => {
@@ -1017,6 +1026,8 @@ function GridResultScreen() {
 function useGridTimer() {
   const tick = useGridStore((s) => s.tick)
   const status = useGridStore((s) => s.status)
+  const timeLeft = useGridStore((s) => s.timeLeft)
+  const muted = useGridStore((s) => s.muted)
   const ref = useRef<NodeJS.Timeout | null>(null)
   useEffect(() => {
     if (status === 'playing') {
@@ -1024,6 +1035,12 @@ function useGridTimer() {
     }
     return () => { if (ref.current) clearInterval(ref.current) }
   }, [status, tick])
+
+  useEffect(() => {
+    if (status === 'playing' && timeLeft > 0 && timeLeft <= 10) {
+      playTimerWarning(muted)
+    }
+  }, [timeLeft, status, muted])
 }
 
 function GridGame() {

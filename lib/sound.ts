@@ -74,3 +74,7 @@ export function playStageClear(muted: boolean) {
   }
   vibrate([50, 30, 100])
 }
+
+export function playTimerWarning(muted: boolean) {
+  if (!muted) playTone(880, 0.07, 'sine', 0.1)
+}
