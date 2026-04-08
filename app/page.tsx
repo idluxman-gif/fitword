@@ -145,8 +145,15 @@ function TopBar() {
     <div className="px-3 py-2 space-y-1">
       <div className="flex items-center justify-between">
         {/* Timer */}
-        <div className="relative">
-          <span className={`text-lg font-bold tabular-nums ${isLow ? 'text-error animate-pulse' : timerFlash ? 'text-success' : 'text-white'}`}>
+        <div className="relative flex items-center">
+          {isLow && (
+            <motion.div
+              animate={{ scale: [1, 1.6, 1], opacity: [0.4, 0, 0.4] }}
+              transition={{ duration: 0.8, repeat: Infinity }}
+              className="absolute inset-0 rounded-lg bg-error/20 -m-1"
+            />
+          )}
+          <span className={`text-lg font-bold tabular-nums transition-all duration-300 relative ${isLow ? 'timer-danger' : timerFlash ? 'text-success' : 'text-white'}`}>
             {timeStr}
           </span>
           <AnimatePresence>
@@ -172,10 +179,19 @@ function TopBar() {
         )}
 
         {/* Score */}
-        <div className="text-lg font-bold text-accent">
-          {score} נק׳
+        <div className="text-lg font-bold text-accent flex items-baseline gap-1">
+          <motion.span
+            key={score}
+            initial={{ scale: 1.5 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+            className="inline-block tabular-nums"
+          >
+            {score}
+          </motion.span>
+          <span>נק׳</span>
           {mode === 'score_rush' && (
-            <span className="text-xs text-gray-400 mr-1">/ {scoreTarget}</span>
+            <span className="text-xs text-gray-400">/ {scoreTarget}</span>
           )}
         </div>
 
@@ -234,7 +250,7 @@ function TargetRow() {
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 400, damping: 20 }}
             className={`w-[22px] h-[34px] rounded-md flex items-center justify-center text-sm font-bold
-              ${cell.wordIdx % 2 === 0 ? 'bg-accent/30 border border-accent/50' : 'bg-purple-900/40 border border-purple-700/50'}
+              ${cell.wordIdx % 2 === 0 ? 'target-cell-even' : 'target-cell-odd'}
             `}
           >
             {cell.char}
@@ -244,7 +260,7 @@ function TargetRow() {
         {Array.from({ length: emptyCount }).map((_, i) => (
           <div
             key={`empty-${i}`}
-            className="w-[22px] h-[34px] rounded-md border border-gray-700/50 bg-gray-800/20"
+            className="w-[22px] h-[34px] rounded-md target-cell-empty"
           />
         ))}
       </div>
@@ -296,7 +312,7 @@ function WordBuilder() {
           ✕
         </motion.button>
 
-        <div className="flex-1 min-h-[44px] flex items-center justify-center rounded-xl bg-gray-800/30 px-3">
+        <div className={`flex-1 min-h-[44px] flex items-center justify-center rounded-xl bg-gray-800/30 px-3 transition-all duration-200 ${currentWord ? 'word-display-active' : ''}`}>
           <span className="text-2xl font-bold tracking-wider">
             {currentWord || <span className="text-gray-600 text-base">הקש על אותיות</span>}
           </span>
@@ -359,16 +375,14 @@ function LetterTiles() {
           return (
           <motion.button
             key={`${letter}-${i}`}
-            whileTap={isUsed ? {} : { scale: 0.92 }}
+            whileTap={isUsed ? {} : { scale: 0.86, y: 2 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 20 }}
             onClick={() => handleTap(i)}
             disabled={isUsed}
-            className={`w-[52px] h-[52px] rounded-xl border-2
-              text-xl font-bold
-              shadow-lg shadow-black/30
-              transition-colors duration-100
+            className={`w-[52px] h-[52px] rounded-xl text-xl font-bold transition-opacity duration-100
               ${isUsed
-                ? 'bg-tile/30 border-transparent text-white/25 cursor-not-allowed'
-                : 'bg-tile border-transparent text-white active:border-accent active:bg-accent/20'
+                ? 'letter-tile-used text-white/20 cursor-not-allowed'
+                : 'letter-tile text-white'
               }`}
           >
             {letter}
@@ -385,19 +399,20 @@ function FeedbackBar() {
   const feedback = useGameStore((s) => s.feedback)
 
   return (
-    <div className="h-8 flex items-center justify-center px-4">
+    <div className="h-9 flex items-center justify-center px-4">
       <AnimatePresence mode="wait">
         {feedback && (
           <motion.div
             key={feedback.text}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className={`text-sm font-medium ${
-              feedback.type === 'success' ? 'text-success' :
-              feedback.type === 'error' ? 'text-error' :
-              feedback.type === 'warning' ? 'text-yellow-400' :
-              'text-accent'
+            initial={{ opacity: 0, y: 12, scale: 0.85 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+            className={`text-sm font-bold px-3 py-1 rounded-full ${
+              feedback.type === 'success' ? 'text-success bg-success/10 border border-success/20' :
+              feedback.type === 'error' ? 'text-error bg-error/10 border border-error/20' :
+              feedback.type === 'warning' ? 'text-yellow-400 bg-yellow-400/10 border border-yellow-400/20' :
+              'text-neon bg-neon/10 border border-neon/20'
             }`}
           >
             {feedback.text}
@@ -423,13 +438,14 @@ function StageClearScreen() {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6"
+      className="fixed inset-0 flex flex-col items-center justify-center z-50 px-6"
+      style={{ background: 'radial-gradient(ellipse 70% 50% at 50% 30%, rgba(245,158,11,0.15) 0%, transparent 60%), #0F0F1A' }}
     >
       <motion.div
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-        className="text-6xl mb-3"
+        initial={{ scale: 0, rotate: -30 }}
+        animate={{ scale: 1, rotate: 0 }}
+        transition={{ type: 'spring', stiffness: 250, damping: 12 }}
+        className="text-7xl mb-3"
       >
         ⭐
       </motion.div>
@@ -437,7 +453,8 @@ function StageClearScreen() {
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="text-2xl font-bold text-accent mb-2"
+        className="text-3xl font-black text-gold mb-2"
+        style={{ textShadow: '0 0 20px rgba(245,158,11,0.5)' }}
       >
         !שלב {stage} הושלם
       </motion.h1>
@@ -599,23 +616,24 @@ function ResultScreen() {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6 overflow-y-auto py-8"
+      className="fixed inset-0 flex flex-col items-center justify-center z-50 px-6 overflow-y-auto py-8"
+      style={{ background: isWin ? 'radial-gradient(ellipse 80% 60% at 50% 30%, rgba(124,58,237,0.18) 0%, transparent 60%), #0F0F1A' : 'rgba(15,15,26,0.97)' }}
     >
       {isWin ? (
         <>
           <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-            className="text-7xl mb-4"
+            initial={{ scale: 0, rotate: -20 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 250, damping: 12 }}
+            className="text-8xl mb-4"
           >
             🎉
           </motion.div>
           <motion.h1
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="text-3xl font-bold text-accent mb-2"
+            initial={{ y: 20, opacity: 0, scale: 0.8 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+            className="text-4xl font-black mb-2 logo-gradient"
           >
             !Perfect Fit
           </motion.h1>
@@ -629,19 +647,27 @@ function ResultScreen() {
             <p className="text-gray-400">נשארו {timeLeft} שניות</p>
             <p className="text-gray-400">{filledWords.join(' • ')}</p>
           </motion.div>
-          {[...Array(8)].map((_, i) => (
-            <motion.div
-              key={i}
-              initial={{ scale: 0, x: 0, y: 0 }}
-              animate={{
-                scale: [0, 1, 0],
-                x: Math.cos((i * Math.PI) / 4) * 120,
-                y: Math.sin((i * Math.PI) / 4) * 120,
-              }}
-              transition={{ duration: 1, delay: 0.1 * i }}
-              className="absolute w-3 h-3 rounded-full bg-accent"
-            />
-          ))}
+          {[...Array(20)].map((_, i) => {
+            const COLORS = ['#A855F7','#7C3AED','#F59E0B','#22C55E','#EC4899','#0EA5E9','#F97316','#EAB308','#C084FC','#34D399']
+            const DISTANCES = [130,90,155,80,145,110,160,95,140,120,170,85,150,105,135,75,165,100,145,115]
+            const SIZES = [10,14,8,12,10,16,8,12,10,14,8,12,10,16,8,12,10,14,8,12]
+            const angle = (i * Math.PI * 2) / 20
+            return (
+              <motion.div
+                key={i}
+                initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
+                animate={{
+                  scale: [0, 1.3, 0],
+                  x: Math.cos(angle) * DISTANCES[i],
+                  y: Math.sin(angle) * DISTANCES[i],
+                  opacity: [1, 1, 0],
+                }}
+                transition={{ duration: 0.7 + (i % 5) * 0.12, delay: 0.03 * i }}
+                className="absolute rounded-full"
+                style={{ width: SIZES[i], height: SIZES[i], backgroundColor: COLORS[i % COLORS.length] }}
+              />
+            )
+          })}
         </>
       ) : (
         <>
@@ -1885,12 +1911,18 @@ function ScoreRushTopBar() {
     <div className="px-3 py-2 space-y-1">
       {/* Row 1: timer + score */}
       <div className="flex items-center justify-between">
-        <span className={`text-2xl font-bold tabular-nums transition-colors duration-300 ${
-          timerFlash ? 'text-success' : isLow ? 'text-error animate-pulse' : 'text-white'
+        <span className={`text-2xl font-bold tabular-nums transition-all duration-300 ${
+          timerFlash ? 'text-success' : isLow ? 'timer-danger' : 'text-white'
         }`}>
           {minutes}:{seconds.toString().padStart(2, '0')}
         </span>
-        <span className="text-2xl font-bold text-accent">{score} נק׳</span>
+        <div className="text-2xl font-bold text-accent flex items-baseline gap-1">
+          <motion.span key={score} initial={{ scale: 1.4 }} animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+            className="inline-block tabular-nums"
+          >{score}</motion.span>
+          <span>נק׳</span>
+        </div>
         <div className="flex items-center gap-1">
           <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center text-gray-400">
             {muted ? '🔇' : '🔊'}
@@ -2345,14 +2377,22 @@ function PreGameScreen({ modeKey, onStart, onBack }: {
   if (countdown !== null) {
     return (
       <motion.div key="cd" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        className="fixed inset-0 bg-bg flex flex-col items-center justify-center z-50">
+        className="fixed inset-0 home-gradient flex flex-col items-center justify-center z-50">
         <motion.div
           key={countdown}
-          initial={{ scale: 1.6, opacity: 0 }}
+          initial={{ scale: 2.2, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.6, opacity: 0 }}
-          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-          className="text-9xl font-bold text-accent"
+          exit={{ scale: 0.4, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 18 }}
+          className="text-9xl font-black"
+          style={{
+            color: countdown === 3 ? '#4ADE80' : countdown === 2 ? '#FBBF24' : '#F87171',
+            textShadow: countdown === 3
+              ? '0 0 40px rgba(74,222,128,0.7), 0 0 80px rgba(74,222,128,0.3)'
+              : countdown === 2
+              ? '0 0 40px rgba(251,191,36,0.7), 0 0 80px rgba(251,191,36,0.3)'
+              : '0 0 40px rgba(248,113,113,0.9), 0 0 80px rgba(248,113,113,0.5)',
+          }}
         >
           {countdown}
         </motion.div>
@@ -2492,11 +2532,12 @@ function HomeScreen() {
   }
 
   return (
-    <div className="fixed inset-0 bg-bg flex flex-col items-center justify-center z-50 px-6">
+    <div className="fixed inset-0 home-gradient flex flex-col items-center justify-center z-50 px-6">
       <motion.h1
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="text-5xl font-bold text-accent mb-2"
+        initial={{ y: -20, opacity: 0, scale: 0.9 }}
+        animate={{ y: 0, opacity: 1, scale: 1 }}
+        transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+        className="text-6xl font-bold mb-2 logo-gradient"
       >
         xActo
       </motion.h1>
@@ -2543,11 +2584,10 @@ function HomeScreen() {
               transition={{ delay: m.delay }}
               whileTap={{ scale: 0.95 }}
               onClick={() => handleSingleModeClick(m.key)}
-              className="px-6 py-4 rounded-2xl bg-accent/90 hover:bg-accent text-white text-lg font-bold
-                shadow-lg shadow-accent/20 flex items-center justify-between"
+              className={`px-6 py-4 rounded-2xl text-white text-lg font-bold flex items-center justify-between mode-btn-${m.key}`}
             >
               <span>{m.label}</span>
-              <span className="text-sm font-normal text-white/60">{m.best}</span>
+              <span className="text-sm font-normal text-white/65">{m.best}</span>
             </motion.button>
           ))}
         </div>
