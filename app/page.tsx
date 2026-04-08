@@ -6,7 +6,7 @@ import { useGameStore, type GameMode } from '@/lib/store'
 import { useGridStore, type Direction } from '@/lib/grid-store'
 import { useMultiplayerStore, type MultiplayerStatus } from '@/lib/multiplayer-store'
 import { useDesignerStore, type CustomLevel, type LevelPack } from '@/lib/designer-store'
-import { playTileTap, playValidWord, playInvalidWord, playPerfectFit, playStageClear, playTimerWarning } from '@/lib/sound'
+import { playTileTap, playValidWord, playInvalidWord, playPerfectFit, playStageClear, playTimerWarning, playExplosion } from '@/lib/sound'
 import { fetchLeaderboard, checkQualifies, submitScore, type LeaderboardEntry } from '@/lib/leaderboard'
 
 // ─── Init Hook ───
@@ -709,6 +709,64 @@ function ResultScreen() {
 
 const DIR_ARROWS: Record<Direction, string> = { right: '←', down: '↓', left: '→', up: '↑' }
 
+const PARTICLE_COLORS = ['#fbbf24', '#f97316', '#ef4444', '#a855f7', '#3b82f6', '#10b981']
+
+function ExplodingCell({ size, char }: { size: number; char: string | null }) {
+  const half = size / 2
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      {/* Main cell: flash yellow → orange → scale up → vanish */}
+      <motion.div
+        initial={{ scale: 1, opacity: 1 }}
+        animate={{ scale: [1, 1.35, 1.6, 0.1], opacity: [1, 1, 0.7, 0] }}
+        transition={{ duration: 0.55, ease: 'easeOut', times: [0, 0.3, 0.6, 1] }}
+        className="absolute inset-0 rounded-lg flex items-center justify-center font-bold text-sm"
+        style={{ background: 'linear-gradient(135deg, #fde68a, #f97316)', color: '#1a0a00' }}
+      >
+        {char}
+      </motion.div>
+      {/* Shockwave ring */}
+      <motion.div
+        initial={{ scale: 0.5, opacity: 0.8 }}
+        animate={{ scale: 2.5, opacity: 0 }}
+        transition={{ duration: 0.45, ease: 'easeOut' }}
+        className="absolute inset-0 rounded-lg border-2 border-yellow-400 pointer-events-none"
+        style={{ top: -size * 0.25, left: -size * 0.25, width: size * 1.5, height: size * 1.5 }}
+      />
+      {/* Particles */}
+      {PARTICLE_COLORS.map((color, i) => {
+        const angle = (i / PARTICLE_COLORS.length) * Math.PI * 2
+        const dist = size * 1.4
+        return (
+          <motion.div
+            key={i}
+            initial={{ x: 0, y: 0, scale: 1, opacity: 1 }}
+            animate={{ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist, scale: 0, opacity: 0 }}
+            transition={{ duration: 0.5, ease: 'easeOut', delay: i * 0.015 }}
+            className="absolute rounded-full pointer-events-none"
+            style={{ width: 6, height: 6, top: half - 3, left: half - 3, backgroundColor: color }}
+          />
+        )
+      })}
+      {/* Extra diagonal particles (smaller) */}
+      {[45, 135, 225, 315].map((deg, i) => {
+        const angle = (deg * Math.PI) / 180
+        const dist = size * 1.1
+        return (
+          <motion.div
+            key={`d${i}`}
+            initial={{ x: 0, y: 0, scale: 1, opacity: 0.8 }}
+            animate={{ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist, scale: 0, opacity: 0 }}
+            transition={{ duration: 0.4, ease: 'easeOut', delay: 0.05 }}
+            className="absolute rounded-full pointer-events-none"
+            style={{ width: 4, height: 4, top: half - 2, left: half - 2, backgroundColor: '#ffffff' }}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
 function GridBoard() {
   const grid = useGridStore((s) => s.grid)
   const gridRows = useGridStore((s) => s.gridRows)
@@ -717,6 +775,8 @@ function GridBoard() {
   const direction = useGridStore((s) => s.direction)
   const selectCell = useGridStore((s) => s.selectCell)
   const status = useGridStore((s) => s.status)
+  const explodingCells = useGridStore((s) => s.explodingCells)
+  const explodingSet = new Set(explodingCells)
 
   if (status !== 'playing') return null
 
@@ -732,6 +792,10 @@ function GridBoard() {
       {grid.map((row, r) => (
         <div key={r} className="flex flex-row-reverse gap-1">
           {row.map((cell, c) => {
+            const isExploding = explodingSet.has(`${r},${c}`)
+            if (isExploding) {
+              return <ExplodingCell key={`${r}-${c}`} size={cellSize} char={cell.char} />
+            }
             if (!cell.active) {
               // Inactive cell — invisible spacer
               return <div key={`${r}-${c}`} style={{ width: cellSize, height: cellSize }} />
@@ -834,9 +898,16 @@ function GridWordBuilder() {
     const prev = useGridStore.getState().score
     submitWord()
     const next = useGridStore.getState()
-    if (next.status === 'stage_clear') playPerfectFit(muted)
-    else if (next.score > prev) playValidWord(muted)
-    else if (next.feedback?.type === 'error') playInvalidWord(muted)
+    if (next.explodingCells.length > 0) {
+      // Explosion animation running — boom now; stage_clear fanfare fires via useGridTimer effect
+      playExplosion(muted)
+    } else if (next.status === 'stage_clear') {
+      // Fanfare fires via useGridTimer effect — skip validWord to avoid double sound
+    } else if (next.score > prev) {
+      playValidWord(muted)
+    } else if (next.feedback?.type === 'error') {
+      playInvalidWord(muted)
+    }
   }
 
   return (
@@ -1030,6 +1101,16 @@ function useGridTimer() {
       playTimerWarning(muted)
     }
   }, [timeLeft, status, muted])
+
+  // Play stage-clear fanfare when status transitions from playing → stage_clear
+  // (covers both regular grid fill and delayed explosion stage clear)
+  const prevStatusRef = useRef<string>('')
+  useEffect(() => {
+    if (status === 'stage_clear' && prevStatusRef.current === 'playing') {
+      playPerfectFit(muted)
+    }
+    prevStatusRef.current = status
+  }, [status, muted])
 }
 
 function GridGame() {

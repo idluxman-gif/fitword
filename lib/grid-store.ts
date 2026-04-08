@@ -298,6 +298,7 @@ interface GridState {
   bestStageGrid: number
   bestScoreShapes: number
   bestScoreShapesV2: number
+  explodingCells: string[]   // keys 'r,c' currently mid-explosion animation
 
   // Actions
   initBest: () => void
@@ -383,6 +384,7 @@ export const useGridStore = create<GridState>((set, get) => ({
   bestStageGrid: 0,
   bestScoreShapes: 0,
   bestScoreShapesV2: 0,
+  explodingCells: [],
 
   initBest: () => {
     set({
@@ -697,33 +699,39 @@ export const useGridStore = create<GridState>((set, get) => ({
       }
 
       if (toExplode.size > 0) {
-        // Deactivate exploded cells
-        Array.from(toExplode).forEach((key) => {
-          const [r, c] = key.split(',').map(Number)
-          newGrid[r][c] = { char: null, filled: false, active: false, blocked: false }
-        })
+        const explodeArray = Array.from(toExplode)
         const explodeBonus = toExplode.size * 10
         const totalScore = score + wordScore + explodeBonus
-        const remaining = newGrid.flat().filter((cell) => cell.active).length
 
-        if (remaining === 0) {
-          // All cells exploded — stage clear!
-          saveBest('bestScoreShapesV2', totalScore)
-          set({
-            grid: newGrid, placedWords: newPlacedWords,
-            currentWord: '', usedTileIndices: [],
-            score: totalScore, status: 'stage_clear',
-            feedback: { text: `!פיצוץ מושלם 💥 +${explodeBonus} נק׳`, type: 'success' },
-            bestScoreShapesV2: Math.max(get().bestScoreShapesV2, totalScore),
+        // Phase 1: keep cells alive so the renderer can animate them out
+        set({
+          grid: newGrid, placedWords: newPlacedWords,
+          currentWord: '', usedTileIndices: [],
+          score: totalScore,
+          explodingCells: explodeArray,
+          feedback: { text: `!פיצוץ 💥 +${explodeBonus} נק׳`, type: 'success' },
+        })
+
+        // Phase 2: after animation completes, deactivate cells + check stage clear
+        setTimeout(() => {
+          const { grid: g } = get()
+          const finalGrid = g.map((row) => row.map((cell) => ({ ...cell })))
+          explodeArray.forEach((key) => {
+            const [r, c] = key.split(',').map(Number)
+            finalGrid[r][c] = { char: null, filled: false, active: false, blocked: false }
           })
-        } else {
-          set({
-            grid: newGrid, placedWords: newPlacedWords,
-            currentWord: '', usedTileIndices: [],
-            score: totalScore,
-            feedback: { text: `!פיצוץ 💥 +${explodeBonus} נק׳`, type: 'success' },
-          })
-        }
+          const remaining = finalGrid.flat().filter((cell) => cell.active).length
+          if (remaining === 0) {
+            saveBest('bestScoreShapesV2', totalScore)
+            set({
+              grid: finalGrid, explodingCells: [], status: 'stage_clear',
+              bestScoreShapesV2: Math.max(get().bestScoreShapesV2, totalScore),
+            })
+          } else {
+            set({ grid: finalGrid, explodingCells: [] })
+          }
+        }, 650)
+
         return
       }
 
