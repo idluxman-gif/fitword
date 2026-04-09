@@ -807,73 +807,77 @@ function GridBoard() {
 
   // Pixel position of cell (r,c) within the grid container (for the explosion overlay)
   // px-3 = 12px left pad, py-2 = 8px top pad, gap-1 = 4px gap
-  const cellLeft = (c: number) => 12 + (gridCols - 1 - c) * (cellSize + 4)
-  const cellTop  = (r: number) => 8  + r * (cellSize + 4)
+  // Pixel position of cell (r,c) within the inner grid wrapper (no padding offset — inner div shrinks to row width)
+  const cellLeft = (c: number) => (gridCols - 1 - c) * (cellSize + 4)
+  const cellTop  = (r: number) => r * (cellSize + 4)
 
   return (
-    <div className={`relative flex flex-col items-center gap-1 px-3 py-2${explodingCells.length > 0 ? ' explosion-shake' : ''}`}>
-      {grid.map((row, r) => (
-        <div key={r} className="flex flex-row-reverse gap-1">
-          {row.map((cell, c) => {
-            const isExploding = explodingSet.has(`${r},${c}`)
-            if (isExploding) {
-              // Invisible placeholder — actual explosion rendered in overlay below
-              return <div key={`${r}-${c}`} style={{ width: cellSize, height: cellSize }} />
-            }
-            if (!cell.active) {
-              // Inactive cell — invisible spacer
-              return <div key={`${r}-${c}`} style={{ width: cellSize, height: cellSize }} />
-            }
-            // Blocked cell — dark distinct fill, not interactive
-            if (cell.blocked) {
+    // Outer div: padding + centering. Inner div: relative positioning that exactly wraps the rows.
+    <div className={`flex flex-col items-center px-3 py-2${explodingCells.length > 0 ? ' explosion-shake' : ''}`}>
+      <div className="relative flex flex-col gap-1">
+        {grid.map((row, r) => (
+          <div key={r} className="flex flex-row-reverse gap-1">
+            {row.map((cell, c) => {
+              const isExploding = explodingSet.has(`${r},${c}`)
+              if (isExploding) {
+                // Invisible placeholder — actual explosion rendered in overlay below
+                return <div key={`${r}-${c}`} style={{ width: cellSize, height: cellSize }} />
+              }
+              if (!cell.active) {
+                // Inactive cell — invisible spacer
+                return <div key={`${r}-${c}`} style={{ width: cellSize, height: cellSize }} />
+              }
+              // Blocked cell — dark distinct fill, not interactive
+              if (cell.blocked) {
+                return (
+                  <div
+                    key={`${r}-${c}`}
+                    className="rounded-lg bg-gray-900/80 border-2 border-gray-800/30 flex items-center justify-center"
+                    style={{ width: cellSize, height: cellSize }}
+                    title="משבצת חסומה"
+                  >
+                    <span className="text-gray-700 text-[10px]">✕</span>
+                  </div>
+                )
+              }
+              const isSelected = selectedCell?.row === r && selectedCell?.col === c
               return (
-                <div
+                <motion.button
                   key={`${r}-${c}`}
-                  className="rounded-lg bg-gray-900/80 border-2 border-gray-800/30 flex items-center justify-center"
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => selectCell(r, c)}
+                  className={`rounded-lg flex items-center justify-center font-bold text-sm transition-all duration-150
+                    ${cell.filled
+                      ? 'bg-white text-bg border-2 border-white/80'
+                      : isSelected
+                        ? 'bg-accent/40 border-2 border-accent text-white'
+                        : 'bg-gray-800/60 border-2 border-gray-700/40 text-gray-500'
+                    }`}
                   style={{ width: cellSize, height: cellSize }}
-                  title="משבצת חסומה"
                 >
-                  <span className="text-gray-700 text-[10px]">✕</span>
+                  {cell.filled ? '' : isSelected ? (
+                    <span className="text-white text-2xl font-black drop-shadow-[0_0_6px_rgba(124,58,237,0.8)]">{DIR_ARROWS[direction]}</span>
+                  ) : ''}
+                </motion.button>
+              )
+            })}
+          </div>
+        ))}
+        {/* Explosion overlay — inside the inner wrapper that exactly fits the rows, so coordinates are exact */}
+        {explodingCells.length > 0 && (
+          <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 100, overflow: 'visible' }}>
+            {explodingCells.map(key => {
+              const [rs, cs] = key.split(',')
+              const r = parseInt(rs), c = parseInt(cs)
+              return (
+                <div key={key} className="absolute" style={{ left: cellLeft(c), top: cellTop(r) }}>
+                  <ExplodingCell size={cellSize} char={grid[r]?.[c]?.char ?? null} />
                 </div>
               )
-            }
-            const isSelected = selectedCell?.row === r && selectedCell?.col === c
-            return (
-              <motion.button
-                key={`${r}-${c}`}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => selectCell(r, c)}
-                className={`rounded-lg flex items-center justify-center font-bold text-sm transition-all duration-150
-                  ${cell.filled
-                    ? 'bg-white text-bg border-2 border-white/80'
-                    : isSelected
-                      ? 'bg-accent/40 border-2 border-accent text-white'
-                      : 'bg-gray-800/60 border-2 border-gray-700/40 text-gray-500'
-                  }`}
-                style={{ width: cellSize, height: cellSize }}
-              >
-                {cell.filled ? '' : isSelected ? (
-                  <span className="text-white text-2xl font-black drop-shadow-[0_0_6px_rgba(124,58,237,0.8)]">{DIR_ARROWS[direction]}</span>
-                ) : ''}
-              </motion.button>
-            )
-          })}
-        </div>
-      ))}
-      {/* Explosion overlay — rendered outside the flex-row stacking context so z-index works correctly */}
-      {explodingCells.length > 0 && (
-        <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 100, overflow: 'visible' }}>
-          {explodingCells.map(key => {
-            const [rs, cs] = key.split(',')
-            const r = parseInt(rs), c = parseInt(cs)
-            return (
-              <div key={key} className="absolute" style={{ left: cellLeft(c), top: cellTop(r) }}>
-                <ExplodingCell size={cellSize} char={grid[r]?.[c]?.char ?? null} />
-              </div>
-            )
-          })}
-        </div>
-      )}
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
