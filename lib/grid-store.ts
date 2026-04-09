@@ -415,6 +415,7 @@ export const useGridStore = create<GridState>((set, get) => ({
         status: 'playing',
         feedback: null,
         stage: 1,
+        explodingCells: [],
       })
     } else {
       const { rows, cols } = getGridSize(1)
@@ -446,7 +447,7 @@ export const useGridStore = create<GridState>((set, get) => ({
         placedWords: [], selectedCell: null, direction: 'right' as Direction,
         letters, currentWord: '', usedTileIndices: [],
         score: 0, timeLeft: 120, status: 'playing' as GridStatus,
-        feedback: null, stage,
+        feedback: null, stage, explodingCells: [],
       })
     } else {
       const { rows, cols } = getGridSize(stage)
@@ -456,7 +457,7 @@ export const useGridStore = create<GridState>((set, get) => ({
         placedWords: [], selectedCell: null, direction: 'right' as Direction,
         letters, currentWord: '', usedTileIndices: [],
         score: 0, timeLeft: 120, status: 'playing' as GridStatus,
-        feedback: null, stage,
+        feedback: null, stage, explodingCells: [],
       })
     }
   },
@@ -677,30 +678,42 @@ export const useGridStore = create<GridState>((set, get) => ({
 
     // ── Shapes V2: explosion mechanic ─────────────────────────────────────
     if (get().difficulty === 'shapes_v2') {
-      // Collect cells to explode: rows and cols where ALL active cells are filled
+      // Collect cells to explode: rows/cols where ALL fillable (non-blocked) active cells are filled.
+      // Blocked cells are excluded from the trigger check but also deactivated on explosion.
       const toExplode = new Set<string>()
       for (let r = 0; r < gridRows; r++) {
-        const activeCols = []
+        const fillableCols = []
         for (let c = 0; c < gridCols; c++) {
-          if (newGrid[r][c].active) activeCols.push(c)
+          if (newGrid[r][c].active && !newGrid[r][c].blocked) fillableCols.push(c)
         }
-        if (activeCols.length > 0 && activeCols.every((c) => newGrid[r][c].filled)) {
-          activeCols.forEach((c) => toExplode.add(`${r},${c}`))
+        if (fillableCols.length > 0 && fillableCols.every((c) => newGrid[r][c].filled)) {
+          // Trigger: add ALL active cells in this row (including blocked) to explode
+          for (let c = 0; c < gridCols; c++) {
+            if (newGrid[r][c].active) toExplode.add(`${r},${c}`)
+          }
         }
       }
       for (let c = 0; c < gridCols; c++) {
-        const activeRows = []
+        const fillableRows = []
         for (let r = 0; r < gridRows; r++) {
-          if (newGrid[r][c].active) activeRows.push(r)
+          if (newGrid[r][c].active && !newGrid[r][c].blocked) fillableRows.push(r)
         }
-        if (activeRows.length > 0 && activeRows.every((r) => newGrid[r][c].filled)) {
-          activeRows.forEach((r) => toExplode.add(`${r},${c}`))
+        if (fillableRows.length > 0 && fillableRows.every((r) => newGrid[r][c].filled)) {
+          // Trigger: add ALL active cells in this column (including blocked) to explode
+          for (let r = 0; r < gridRows; r++) {
+            if (newGrid[r][c].active) toExplode.add(`${r},${c}`)
+          }
         }
       }
 
       if (toExplode.size > 0) {
         const explodeArray = Array.from(toExplode)
-        const explodeBonus = toExplode.size * 10
+        // Only count non-blocked cells for bonus
+        const fillableExploded = explodeArray.filter((key) => {
+          const [r, c] = key.split(',').map(Number)
+          return !newGrid[r][c].blocked
+        })
+        const explodeBonus = fillableExploded.length * 10
         const totalScore = score + wordScore + explodeBonus
 
         // Phase 1: keep cells alive so the renderer can animate them out
@@ -720,7 +733,8 @@ export const useGridStore = create<GridState>((set, get) => ({
             const [r, c] = key.split(',').map(Number)
             finalGrid[r][c] = { char: null, filled: false, active: false, blocked: false }
           })
-          const remaining = finalGrid.flat().filter((cell) => cell.active).length
+          // Stage clear = no fillable (non-blocked) active cells remain
+          const remaining = finalGrid.flat().filter((cell) => cell.active && !cell.blocked).length
           if (remaining === 0) {
             saveBest('bestScoreShapesV2', totalScore)
             set({
