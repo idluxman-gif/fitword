@@ -709,66 +709,74 @@ function ResultScreen() {
 
 const DIR_ARROWS: Record<Direction, string> = { right: '←', down: '↓', left: '→', up: '↑' }
 
-const PARTICLE_COLORS = ['#fbbf24', '#f97316', '#ef4444', '#a855f7', '#3b82f6', '#10b981', '#facc15', '#fb923c']
+const PARTICLE_COLORS = ['#fbbf24', '#f97316', '#ef4444', '#a855f7', '#3b82f6', '#10b981', '#facc15', '#fb923c', '#ffffff', '#ffdd00', '#ff6600', '#cc00ff', '#00cfff', '#00ff99', '#ffaaaa', '#ffd700']
 
 function ExplodingCell({ size, char }: { size: number; char: string | null }) {
   const half = size / 2
   return (
     // overflow-visible so particles show beyond cell bounds even inside overflow-hidden containers
     <div className="relative" style={{ width: size, height: size, overflow: 'visible' }}>
-      {/* Bright inner flash — immediate white burst */}
+      {/* Bright inner burst — large white flash */}
       <motion.div
-        initial={{ scale: 0.8, opacity: 1 }}
-        animate={{ scale: 2.2, opacity: 0 }}
-        transition={{ duration: 0.25, ease: 'easeOut' }}
+        initial={{ scale: 0.5, opacity: 1 }}
+        animate={{ scale: 4, opacity: 0 }}
+        transition={{ duration: 0.35, ease: 'easeOut' }}
         className="absolute inset-0 rounded-full pointer-events-none"
-        style={{ top: -size * 0.6, left: -size * 0.6, width: size * 2.2, height: size * 2.2, background: 'radial-gradient(circle, rgba(255,255,200,0.9) 0%, rgba(251,191,36,0.6) 50%, transparent 80%)' }}
+        style={{ top: -size * 0.75, left: -size * 0.75, width: size * 2.5, height: size * 2.5, background: 'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,240,100,0.9) 30%, rgba(251,191,36,0.6) 60%, transparent 80%)' }}
       />
-      {/* Main cell: flash bright → scale up → vanish */}
+      {/* Main cell: flash white → scale up → vanish */}
       <motion.div
         initial={{ scale: 1, opacity: 1 }}
-        animate={{ scale: [1, 1.5, 1.8, 0.05], opacity: [1, 1, 0.5, 0] }}
-        transition={{ duration: 0.6, ease: 'easeOut', times: [0, 0.25, 0.55, 1] }}
+        animate={{ scale: [1, 1.8, 2.5, 0.05], opacity: [1, 1, 0.6, 0] }}
+        transition={{ duration: 0.7, ease: 'easeOut', times: [0, 0.2, 0.55, 1] }}
         className="absolute inset-0 rounded-lg flex items-center justify-center font-bold text-sm"
-        style={{ background: 'linear-gradient(135deg, #fff176, #fde68a, #f97316)', color: '#1a0a00', boxShadow: '0 0 12px 4px rgba(251,191,36,0.8)' }}
+        style={{ background: 'linear-gradient(135deg, #ffffff, #fff176, #fde68a, #f97316)', color: '#1a0a00', boxShadow: '0 0 24px 8px rgba(255,255,255,0.9), 0 0 40px 12px rgba(251,191,36,0.7)' }}
       >
         {char}
       </motion.div>
-      {/* Expanding shockwave ring */}
+      {/* Primary shockwave ring */}
       <motion.div
-        initial={{ scale: 0.3, opacity: 1, borderWidth: 4 }}
-        animate={{ scale: 3.5, opacity: 0, borderWidth: 1 }}
-        transition={{ duration: 0.55, ease: 'easeOut' }}
-        className="absolute rounded-full border-yellow-300 pointer-events-none"
+        initial={{ scale: 0.2, opacity: 1, borderWidth: 6 }}
+        animate={{ scale: 5, opacity: 0, borderWidth: 1 }}
+        transition={{ duration: 0.65, ease: 'easeOut' }}
+        className="absolute rounded-full border-yellow-200 pointer-events-none"
         style={{ top: -size * 0.75, left: -size * 0.75, width: size * 2.5, height: size * 2.5, borderStyle: 'solid' }}
       />
-      {/* Particles */}
+      {/* Secondary shockwave ring (delayed) */}
+      <motion.div
+        initial={{ scale: 0.2, opacity: 0.7, borderWidth: 4 }}
+        animate={{ scale: 4, opacity: 0, borderWidth: 1 }}
+        transition={{ duration: 0.6, ease: 'easeOut', delay: 0.1 }}
+        className="absolute rounded-full border-orange-300 pointer-events-none"
+        style={{ top: -size * 0.5, left: -size * 0.5, width: size * 2, height: size * 2, borderStyle: 'solid' }}
+      />
+      {/* Particles — 16 larger, brighter */}
       {PARTICLE_COLORS.map((color, i) => {
         const angle = (i / PARTICLE_COLORS.length) * Math.PI * 2
-        const dist = size * 2.2
+        const dist = size * 3.5
         return (
           <motion.div
             key={i}
-            initial={{ x: 0, y: 0, scale: 1.5, opacity: 1 }}
+            initial={{ x: 0, y: 0, scale: 2, opacity: 1 }}
             animate={{ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist, scale: 0, opacity: 0 }}
-            transition={{ duration: 0.55, ease: 'easeOut', delay: i * 0.01 }}
+            transition={{ duration: 0.65, ease: 'easeOut', delay: i * 0.008 }}
             className="absolute rounded-full pointer-events-none"
-            style={{ width: 8, height: 8, top: half - 4, left: half - 4, backgroundColor: color, boxShadow: `0 0 4px ${color}` }}
+            style={{ width: 16, height: 16, top: half - 8, left: half - 8, backgroundColor: color, boxShadow: `0 0 8px 2px ${color}` }}
           />
         )
       })}
-      {/* Sparks — fast diagonal streaks */}
-      {[0, 45, 90, 135, 180, 225, 270, 315].map((deg, i) => {
+      {/* Sparks — fast bright streaks in 12 directions */}
+      {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((deg, i) => {
         const angle = (deg * Math.PI) / 180
-        const dist = size * 1.8
+        const dist = size * 2.8
         return (
           <motion.div
             key={`s${i}`}
-            initial={{ x: 0, y: 0, opacity: 1, scaleY: 3 }}
+            initial={{ x: 0, y: 0, opacity: 1, scaleY: 4, width: 4, height: 4 }}
             animate={{ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist, opacity: 0, scaleY: 1 }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
             className="absolute rounded-full pointer-events-none"
-            style={{ width: 3, height: 3, top: half - 1.5, left: half - 1.5, backgroundColor: '#fff' }}
+            style={{ width: 4, height: 4, top: half - 2, left: half - 2, backgroundColor: '#fff', boxShadow: '0 0 3px #fff' }}
           />
         )
       })}
@@ -797,7 +805,7 @@ function GridBoard() {
   const cellSize = Math.min(maxByWidth, maxByHeight, 56)
 
   return (
-    <div className="flex flex-col items-center gap-1 px-3 py-2">
+    <div className={`flex flex-col items-center gap-1 px-3 py-2${explodingCells.length > 0 ? ' explosion-shake' : ''}`}>
       {grid.map((row, r) => (
         <div key={r} className="flex flex-row-reverse gap-1">
           {row.map((cell, c) => {
@@ -1128,15 +1136,28 @@ function ExplosionFlash() {
   return (
     <AnimatePresence>
       {isExploding && (
-        <motion.div
-          key="explosion-flash"
-          initial={{ opacity: 0.7 }}
-          animate={{ opacity: 0 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.4, ease: 'easeOut' }}
-          className="fixed inset-0 pointer-events-none z-40"
-          style={{ background: 'radial-gradient(ellipse at center, rgba(251,191,36,0.55) 0%, rgba(249,115,22,0.3) 50%, transparent 80%)' }}
-        />
+        <>
+          {/* White camera-flash layer — immediate, very bright */}
+          <motion.div
+            key="explosion-white"
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="fixed inset-0 pointer-events-none z-50"
+            style={{ background: 'rgba(255,255,255,0.75)' }}
+          />
+          {/* Orange glow — lingers longer */}
+          <motion.div
+            key="explosion-glow"
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+            className="fixed inset-0 pointer-events-none z-40"
+            style={{ background: 'radial-gradient(ellipse at center, rgba(251,191,36,0.75) 0%, rgba(249,115,22,0.5) 40%, transparent 75%)' }}
+          />
+        </>
       )}
     </AnimatePresence>
   )
