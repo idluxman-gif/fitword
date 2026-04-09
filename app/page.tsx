@@ -805,14 +805,20 @@ function GridBoard() {
   const maxByHeight = Math.floor((availableHeight - (gridRows - 1) * 4) / gridRows)
   const cellSize = Math.min(maxByWidth, maxByHeight, 56)
 
+  // Pixel position of cell (r,c) within the grid container (for the explosion overlay)
+  // px-3 = 12px left pad, py-2 = 8px top pad, gap-1 = 4px gap
+  const cellLeft = (c: number) => 12 + (gridCols - 1 - c) * (cellSize + 4)
+  const cellTop  = (r: number) => 8  + r * (cellSize + 4)
+
   return (
-    <div className={`flex flex-col items-center gap-1 px-3 py-2${explodingCells.length > 0 ? ' explosion-shake' : ''}`}>
+    <div className={`relative flex flex-col items-center gap-1 px-3 py-2${explodingCells.length > 0 ? ' explosion-shake' : ''}`}>
       {grid.map((row, r) => (
         <div key={r} className="flex flex-row-reverse gap-1">
           {row.map((cell, c) => {
             const isExploding = explodingSet.has(`${r},${c}`)
             if (isExploding) {
-              return <ExplodingCell key={`${r}-${c}`} size={cellSize} char={cell.char} />
+              // Invisible placeholder — actual explosion rendered in overlay below
+              return <div key={`${r}-${c}`} style={{ width: cellSize, height: cellSize }} />
             }
             if (!cell.active) {
               // Inactive cell — invisible spacer
@@ -854,6 +860,20 @@ function GridBoard() {
           })}
         </div>
       ))}
+      {/* Explosion overlay — rendered outside the flex-row stacking context so z-index works correctly */}
+      {explodingCells.length > 0 && (
+        <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 100, overflow: 'visible' }}>
+          {explodingCells.map(key => {
+            const [rs, cs] = key.split(',')
+            const r = parseInt(rs), c = parseInt(cs)
+            return (
+              <div key={key} className="absolute" style={{ left: cellLeft(c), top: cellTop(r) }}>
+                <ExplodingCell size={cellSize} char={grid[r]?.[c]?.char ?? null} />
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
