@@ -713,9 +713,10 @@ const PARTICLE_COLORS = ['#fbbf24', '#f97316', '#ef4444', '#a855f7', '#3b82f6', 
 
 function ExplodingCell({ size, char }: { size: number; char: string | null }) {
   const half = size / 2
+  console.log(`[ExplodingCell] rendering char=${char} size=${size}`)
   return (
-    // overflow-visible so particles show beyond cell bounds even inside overflow-hidden containers
-    <div className="relative" style={{ width: size, height: size, overflow: 'visible' }}>
+    // z-index ensures this appears above sibling flex items (other cells) so particles are visible
+    <div className="relative" style={{ width: size, height: size, overflow: 'visible', zIndex: 50 }}>
       {/* Bright inner burst — large white flash */}
       <motion.div
         initial={{ scale: 0.5, opacity: 1 }}
@@ -1133,33 +1134,36 @@ function useGridTimer() {
 function ExplosionFlash() {
   const explodingCells = useGridStore((s) => s.explodingCells)
   const isExploding = explodingCells.length > 0
+  // Use separate AnimatePresence for each layer so keys are direct children (not inside a fragment)
   return (
-    <AnimatePresence>
-      {isExploding && (
-        <>
-          {/* White camera-flash layer — immediate, very bright */}
+    <>
+      <AnimatePresence>
+        {isExploding && (
           <motion.div
             key="explosion-white"
             initial={{ opacity: 1 }}
             animate={{ opacity: 0 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="fixed inset-0 pointer-events-none z-50"
-            style={{ background: 'rgba(255,255,255,0.75)' }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+            className="fixed inset-0 pointer-events-none"
+            style={{ background: 'rgba(255,255,255,0.85)', zIndex: 9999 }}
           />
-          {/* Orange glow — lingers longer */}
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {isExploding && (
           <motion.div
             key="explosion-glow"
             initial={{ opacity: 1 }}
             animate={{ opacity: 0 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-            className="fixed inset-0 pointer-events-none z-40"
-            style={{ background: 'radial-gradient(ellipse at center, rgba(251,191,36,0.75) 0%, rgba(249,115,22,0.5) 40%, transparent 75%)' }}
+            transition={{ duration: 1.0, ease: 'easeOut' }}
+            className="fixed inset-0 pointer-events-none"
+            style={{ background: 'radial-gradient(ellipse at center, rgba(251,191,36,0.85) 0%, rgba(249,115,22,0.65) 40%, transparent 75%)', zIndex: 9998 }}
           />
-        </>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
+    </>
   )
 }
 
