@@ -687,7 +687,6 @@ export const useGridStore = create<GridState>((set, get) => ({
           if (newGrid[r][c].active && !newGrid[r][c].blocked) fillableCols.push(c)
         }
         if (fillableCols.length > 0 && fillableCols.every((c) => newGrid[r][c].filled)) {
-          console.log(`[Shapes V2] Row ${r} complete! fillableCols=`, fillableCols)
           // Trigger: add ALL active cells in this row (including blocked) to explode
           for (let c = 0; c < gridCols; c++) {
             if (newGrid[r][c].active) toExplode.add(`${r},${c}`)
@@ -700,15 +699,12 @@ export const useGridStore = create<GridState>((set, get) => ({
           if (newGrid[r][c].active && !newGrid[r][c].blocked) fillableRows.push(r)
         }
         if (fillableRows.length > 0 && fillableRows.every((r) => newGrid[r][c].filled)) {
-          console.log(`[Shapes V2] Col ${c} complete! fillableRows=`, fillableRows)
           // Trigger: add ALL active cells in this column (including blocked) to explode
           for (let r = 0; r < gridRows; r++) {
             if (newGrid[r][c].active) toExplode.add(`${r},${c}`)
           }
         }
       }
-
-      console.log(`[Shapes V2] submitWord: toExplode.size=${toExplode.size}, cells=`, Array.from(toExplode))
 
       if (toExplode.size > 0) {
         const explodeArray = Array.from(toExplode)
@@ -720,8 +716,6 @@ export const useGridStore = create<GridState>((set, get) => ({
         const explodeBonus = fillableExploded.length * 10
         const totalScore = score + wordScore + explodeBonus
 
-        console.log(`[Shapes V2] Explosion! explodeArray=`, explodeArray, `bonus=${explodeBonus}`)
-
         // Phase 1: keep cells alive so the renderer can animate them out
         set({
           grid: newGrid, placedWords: newPlacedWords,
@@ -731,12 +725,9 @@ export const useGridStore = create<GridState>((set, get) => ({
           feedback: { text: `!פיצוץ 💥 +${explodeBonus} נק׳`, type: 'success' },
         })
 
-        console.log(`[Shapes V2] State after set: explodingCells=`, get().explodingCells)
-
         // Phase 2: after animation completes, deactivate cells + check stage clear
         // 1100ms gives the full animation (0.7s) time to play before cells disappear
         setTimeout(() => {
-          console.log(`[Shapes V2] Timeout fired — clearing explodingCells`)
           const { grid: g } = get()
           const finalGrid = g.map((row) => row.map((cell) => ({ ...cell })))
           explodeArray.forEach((key) => {
@@ -874,3 +865,4 @@ export const useGridStore = create<GridState>((set, get) => ({
     set({ status: 'idle', feedback: null })
   },
 }))
+

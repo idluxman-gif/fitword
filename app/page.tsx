@@ -713,7 +713,6 @@ const PARTICLE_COLORS = ['#fbbf24', '#f97316', '#ef4444', '#a855f7', '#3b82f6', 
 
 function ExplodingCell({ size, char }: { size: number; char: string | null }) {
   const half = size / 2
-  console.log(`[ExplodingCell] rendering char=${char} size=${size}`)
   return (
     // z-index ensures this appears above sibling flex items (other cells) so particles are visible
     <div className="relative" style={{ width: size, height: size, overflow: 'visible', zIndex: 50 }}>
@@ -1165,12 +1164,12 @@ function ExplosionFlash() {
         {isExploding && (
           <motion.div
             key="explosion-white"
-            initial={{ opacity: 1 }}
-            animate={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0, 0.55, 0] }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.35, ease: 'easeOut' }}
+            transition={{ duration: 0.5, ease: 'easeOut', times: [0, 0.2, 1] }}
             className="fixed inset-0 pointer-events-none"
-            style={{ background: 'rgba(255,255,255,0.85)', zIndex: 9999 }}
+            style={{ background: 'rgba(255,255,255,0.9)', zIndex: 9999 }}
           />
         )}
       </AnimatePresence>
@@ -2996,7 +2995,7 @@ export default function GamePage() {
   const showHome = status === 'idle' && gridStatus === 'idle' && mpStatus === 'idle' && !isDesignerMode
 
   return (
-    <main className="h-dvh flex flex-col max-w-md mx-auto overflow-hidden">
+    <main className="h-dvh flex flex-col max-w-md mx-auto overflow-x-hidden">
       {showHome && <HomeScreen />}
 
       {/* Back button leave confirmation dialog */}
