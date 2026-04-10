@@ -770,11 +770,6 @@ function GridBoard() {
   const maxByHeight = Math.floor((availableHeight - (gridRows - 1) * 4) / gridRows)
   const cellSize = Math.min(maxByWidth, maxByHeight, 56)
 
-  // Pixel position of cell (r,c) within the grid container (for the explosion overlay)
-  // px-3 = 12px left pad, py-2 = 8px top pad, gap-1 = 4px gap
-  // Pixel position of cell (r,c) within the inner grid wrapper (no padding offset — inner div shrinks to row width)
-  const cellLeft = (c: number) => (gridCols - 1 - c) * (cellSize + 4)
-  const cellTop  = (r: number) => r * (cellSize + 4)
 
   return (
     // Outer div: padding + centering. Inner div: relative positioning that exactly wraps the rows.
@@ -785,8 +780,12 @@ function GridBoard() {
             {row.map((cell, c) => {
               const isExploding = explodingSet.has(`${r},${c}`)
               if (isExploding) {
-                // Invisible placeholder — actual explosion rendered in overlay below
-                return <div key={`${r}-${c}`} style={{ width: cellSize, height: cellSize }} />
+                // Render ExplodingCell in-place — position is inherently correct, no coordinate math needed
+                return (
+                  <div key={`${r}-${c}`} style={{ width: cellSize, height: cellSize, position: 'relative', overflow: 'visible', zIndex: 50 }}>
+                    <ExplodingCell size={cellSize} />
+                  </div>
+                )
               }
               if (!cell.active) {
                 // Inactive cell — invisible spacer
@@ -828,20 +827,6 @@ function GridBoard() {
             })}
           </div>
         ))}
-        {/* Explosion overlay — inside the inner wrapper that exactly fits the rows, so coordinates are exact */}
-        {explodingCells.length > 0 && (
-          <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 100, overflow: 'visible' }}>
-            {explodingCells.map(key => {
-              const [rs, cs] = key.split(',')
-              const r = parseInt(rs), c = parseInt(cs)
-              return (
-                <div key={key} className="absolute" style={{ left: cellLeft(c), top: cellTop(r) }}>
-                  <ExplodingCell size={cellSize} />
-                </div>
-              )
-            })}
-          </div>
-        )}
       </div>
     </div>
   )

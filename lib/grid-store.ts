@@ -688,7 +688,7 @@ export const useGridStore = create<GridState>((set, get) => ({
         for (let c = 0; c < gridCols; c++) {
           if (newGrid[r][c].active && !newGrid[r][c].blocked) fillableCols.push(c)
         }
-        if (fillableCols.length > 0 && fillableCols.every((c) => newGrid[r][c].filled)) {
+        if (fillableCols.length >= 2 && fillableCols.every((c) => newGrid[r][c].filled)) {
           clearedRows.add(r)
           for (let c = 0; c < gridCols; c++) {
             if (newGrid[r][c].active) toExplode.add(`${r},${c}`)
@@ -700,7 +700,7 @@ export const useGridStore = create<GridState>((set, get) => ({
         for (let r = 0; r < gridRows; r++) {
           if (newGrid[r][c].active && !newGrid[r][c].blocked) fillableRows.push(r)
         }
-        if (fillableRows.length > 0 && fillableRows.every((r) => newGrid[r][c].filled)) {
+        if (fillableRows.length >= 2 && fillableRows.every((r) => newGrid[r][c].filled)) {
           clearedCols.add(c)
           for (let r = 0; r < gridRows; r++) {
             if (newGrid[r][c].active) toExplode.add(`${r},${c}`)
