@@ -978,17 +978,68 @@ function GridLetterTiles() {
 
 function GridFeedbackBar() {
   const feedback = useGridStore((s) => s.feedback)
+  // Hide text feedback when WOW — the overlay handles that visually
+  const isWow = feedback?.text?.includes('וואו') ?? false
   return (
-    <div className="h-8 flex items-center justify-center px-4">
+    <div className="h-10 flex items-center justify-center px-4">
       <AnimatePresence mode="wait">
-        {feedback && (
-          <motion.div key={feedback.text} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            className={`text-sm font-medium ${feedback.type === 'success' ? 'text-success' : feedback.type === 'error' ? 'text-error' : feedback.type === 'warning' ? 'text-yellow-400' : 'text-accent'}`}>
+        {feedback && !isWow && (
+          <motion.div
+            key={feedback.text}
+            initial={{ opacity: 0, scale: 0.75, y: 6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.85, y: -6 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className={`px-4 py-1 rounded font-black text-sm tracking-widest
+              ${feedback.type === 'success'
+                ? 'bg-black/80 text-white'
+                : feedback.type === 'error'
+                  ? 'bg-black/80 text-error'
+                  : 'bg-black/80 text-yellow-400'
+              }`}
+          >
             {feedback.text}
           </motion.div>
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+function WowOverlay() {
+  const feedback = useGridStore((s) => s.feedback)
+  const muted = useGridStore((s) => s.muted)
+  const [visible, setVisible] = useState(false)
+  const lastWowText = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (feedback?.text?.includes('וואו') && feedback.text !== lastWowText.current) {
+      lastWowText.current = feedback.text
+      setVisible(true)
+      if (!muted) {
+        new Audio('/sounds/wow.wav').play().catch(() => {})
+      }
+      const t = setTimeout(() => setVisible(false), 1800)
+      return () => clearTimeout(t)
+    }
+  }, [feedback?.text, muted])
+
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          key="wow-overlay"
+          initial={{ scale: 0.2, opacity: 0 }}
+          animate={{ scale: [0.2, 1.25, 0.92, 1.06, 1], opacity: [0, 1, 1, 1, 1] }}
+          exit={{ scale: 1.15, opacity: 0 }}
+          transition={{ duration: 0.55, times: [0, 0.35, 0.55, 0.75, 1], ease: 'easeOut' }}
+          className="fixed inset-0 flex items-center justify-center pointer-events-none"
+          style={{ zIndex: 9000 }}
+        >
+          <img src="/wow.png" alt="WOW!" style={{ width: 300, maxWidth: '85vw' }} draggable={false} />
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
 
@@ -1114,6 +1165,7 @@ function GridGame() {
       <GridTopBar />
       <GridBoard />
       <GridFeedbackBar />
+      <WowOverlay />
       <div className="flex-1 min-h-2" />
       <div className="shrink-0 pb-safe">
         <GridWordBuilder />
