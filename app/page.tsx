@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore, type GameMode } from '@/lib/store'
 import { useGridStore, type Direction } from '@/lib/grid-store'
@@ -709,77 +709,43 @@ function ResultScreen() {
 
 const DIR_ARROWS: Record<Direction, string> = { right: '←', down: '↓', left: '→', up: '↑' }
 
-const PARTICLE_COLORS = ['#fbbf24', '#f97316', '#ef4444', '#a855f7', '#3b82f6', '#10b981', '#facc15', '#fb923c', '#ffffff', '#ffdd00', '#ff6600', '#cc00ff', '#00cfff', '#00ff99', '#ffaaaa', '#ffd700']
+// Pixel configs precomputed once (stable across re-renders — no random() during animation)
+function makePixelConfigs(count: number) {
+  return Array.from({ length: count }, (_, i) => {
+    const baseAngle = (i / count) * Math.PI * 2
+    const angle = baseAngle + (Math.random() * 0.7 - 0.35)
+    const dist = 22 + Math.random() * 38
+    const pSize = 3 + Math.floor(Math.random() * 4)
+    const delay = Math.random() * 0.07
+    const duration = 0.3 + Math.random() * 0.15
+    return { angle, dist, pSize, delay, duration }
+  })
+}
 
-function ExplodingCell({ size, char }: { size: number; char: string | null }) {
-  const half = size / 2
+function ExplodingCell({ size }: { size: number }) {
+  // Stable pixel configs — computed once on mount
+  const pixels = useMemo(() => makePixelConfigs(12), [])
   return (
-    // z-index ensures this appears above sibling flex items (other cells) so particles are visible
     <div className="relative" style={{ width: size, height: size, overflow: 'visible', zIndex: 50 }}>
-      {/* Bright inner burst — large white flash */}
-      <motion.div
-        initial={{ scale: 0.5, opacity: 1 }}
-        animate={{ scale: 4, opacity: 0 }}
-        transition={{ duration: 0.35, ease: 'easeOut' }}
-        className="absolute inset-0 rounded-full pointer-events-none"
-        style={{ top: -size * 0.75, left: -size * 0.75, width: size * 2.5, height: size * 2.5, background: 'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,240,100,0.9) 30%, rgba(251,191,36,0.6) 60%, transparent 80%)' }}
-      />
-      {/* Main cell: flash white → scale up → vanish */}
+      {/* Cell: flash white then shrink away */}
       <motion.div
         initial={{ scale: 1, opacity: 1 }}
-        animate={{ scale: [1, 1.8, 2.5, 0.05], opacity: [1, 1, 0.6, 0] }}
-        transition={{ duration: 0.7, ease: 'easeOut', times: [0, 0.2, 0.55, 1] }}
-        className="absolute inset-0 rounded-lg flex items-center justify-center font-bold text-sm"
-        style={{ background: 'linear-gradient(135deg, #ffffff, #fff176, #fde68a, #f97316)', color: '#1a0a00', boxShadow: '0 0 24px 8px rgba(255,255,255,0.9), 0 0 40px 12px rgba(251,191,36,0.7)' }}
-      >
-        {char}
-      </motion.div>
-      {/* Primary shockwave ring */}
-      <motion.div
-        initial={{ scale: 0.2, opacity: 1, borderWidth: 6 }}
-        animate={{ scale: 5, opacity: 0, borderWidth: 1 }}
-        transition={{ duration: 0.65, ease: 'easeOut' }}
-        className="absolute rounded-full border-yellow-200 pointer-events-none"
-        style={{ top: -size * 0.75, left: -size * 0.75, width: size * 2.5, height: size * 2.5, borderStyle: 'solid' }}
+        animate={{ scale: [1, 1.15, 0.6], opacity: [1, 1, 0] }}
+        transition={{ duration: 0.28, ease: 'easeOut', times: [0, 0.12, 1] }}
+        className="absolute inset-0 rounded-lg pointer-events-none"
+        style={{ background: 'white' }}
       />
-      {/* Secondary shockwave ring (delayed) */}
-      <motion.div
-        initial={{ scale: 0.2, opacity: 0.7, borderWidth: 4 }}
-        animate={{ scale: 4, opacity: 0, borderWidth: 1 }}
-        transition={{ duration: 0.6, ease: 'easeOut', delay: 0.1 }}
-        className="absolute rounded-full border-orange-300 pointer-events-none"
-        style={{ top: -size * 0.5, left: -size * 0.5, width: size * 2, height: size * 2, borderStyle: 'solid' }}
-      />
-      {/* Particles — 16 larger, brighter */}
-      {PARTICLE_COLORS.map((color, i) => {
-        const angle = (i / PARTICLE_COLORS.length) * Math.PI * 2
-        const dist = size * 3.5
-        return (
-          <motion.div
-            key={i}
-            initial={{ x: 0, y: 0, scale: 2, opacity: 1 }}
-            animate={{ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist, scale: 0, opacity: 0 }}
-            transition={{ duration: 0.65, ease: 'easeOut', delay: i * 0.008 }}
-            className="absolute rounded-full pointer-events-none"
-            style={{ width: 16, height: 16, top: half - 8, left: half - 8, backgroundColor: color, boxShadow: `0 0 8px 2px ${color}` }}
-          />
-        )
-      })}
-      {/* Sparks — fast bright streaks in 12 directions */}
-      {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((deg, i) => {
-        const angle = (deg * Math.PI) / 180
-        const dist = size * 2.8
-        return (
-          <motion.div
-            key={`s${i}`}
-            initial={{ x: 0, y: 0, opacity: 1, scaleY: 4, width: 4, height: 4 }}
-            animate={{ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist, opacity: 0, scaleY: 1 }}
-            transition={{ duration: 0.35, ease: 'easeOut' }}
-            className="absolute rounded-full pointer-events-none"
-            style={{ width: 4, height: 4, top: half - 2, left: half - 2, backgroundColor: '#fff', boxShadow: '0 0 3px #fff' }}
-          />
-        )
-      })}
+      {/* Pixel particles — white squares scattering outward */}
+      {pixels.map(({ angle, dist, pSize, delay, duration }, i) => (
+        <motion.div
+          key={i}
+          initial={{ x: size / 2 - pSize / 2, y: size / 2 - pSize / 2, opacity: 1, scale: 1 }}
+          animate={{ x: size / 2 - pSize / 2 + Math.cos(angle) * dist, y: size / 2 - pSize / 2 + Math.sin(angle) * dist, opacity: 0, scale: 0.4 }}
+          transition={{ duration, ease: 'easeOut', delay }}
+          className="absolute pointer-events-none"
+          style={{ width: pSize, height: pSize, background: 'white', borderRadius: 1 }}
+        />
+      ))}
     </div>
   )
 }
@@ -870,7 +836,7 @@ function GridBoard() {
               const r = parseInt(rs), c = parseInt(cs)
               return (
                 <div key={key} className="absolute" style={{ left: cellLeft(c), top: cellTop(r) }}>
-                  <ExplodingCell size={cellSize} char={grid[r]?.[c]?.char ?? null} />
+                  <ExplodingCell size={cellSize} />
                 </div>
               )
             })}
@@ -1154,41 +1120,6 @@ function useGridTimer() {
   }, [status, muted])
 }
 
-function ExplosionFlash() {
-  const explodingCells = useGridStore((s) => s.explodingCells)
-  const isExploding = explodingCells.length > 0
-  // Use separate AnimatePresence for each layer so keys are direct children (not inside a fragment)
-  return (
-    <>
-      <AnimatePresence>
-        {isExploding && (
-          <motion.div
-            key="explosion-white"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0, 0.55, 0] }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5, ease: 'easeOut', times: [0, 0.2, 1] }}
-            className="fixed inset-0 pointer-events-none"
-            style={{ background: 'rgba(255,255,255,0.9)', zIndex: 9999 }}
-          />
-        )}
-      </AnimatePresence>
-      <AnimatePresence>
-        {isExploding && (
-          <motion.div
-            key="explosion-glow"
-            initial={{ opacity: 1 }}
-            animate={{ opacity: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.0, ease: 'easeOut' }}
-            className="fixed inset-0 pointer-events-none"
-            style={{ background: 'radial-gradient(ellipse at center, rgba(251,191,36,0.85) 0%, rgba(249,115,22,0.65) 40%, transparent 75%)', zIndex: 9998 }}
-          />
-        )}
-      </AnimatePresence>
-    </>
-  )
-}
 
 function GridGame() {
   useGridTimer()
@@ -1205,7 +1136,6 @@ function GridGame() {
         <GridLetterTiles />
         <div className="h-2" />
       </div>
-      <ExplosionFlash />
       <AnimatePresence>
         <GridResultScreen />
       </AnimatePresence>

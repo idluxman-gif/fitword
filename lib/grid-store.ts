@@ -679,15 +679,17 @@ export const useGridStore = create<GridState>((set, get) => ({
     // ── Shapes V2: explosion mechanic ─────────────────────────────────────
     if (get().difficulty === 'shapes_v2') {
       // Collect cells to explode: rows/cols where ALL fillable (non-blocked) active cells are filled.
-      // Blocked cells are excluded from the trigger check but also deactivated on explosion.
+      // Track which distinct rows/cols were cleared for WOW bonus.
       const toExplode = new Set<string>()
+      const clearedRows = new Set<number>()
+      const clearedCols = new Set<number>()
       for (let r = 0; r < gridRows; r++) {
         const fillableCols = []
         for (let c = 0; c < gridCols; c++) {
           if (newGrid[r][c].active && !newGrid[r][c].blocked) fillableCols.push(c)
         }
         if (fillableCols.length > 0 && fillableCols.every((c) => newGrid[r][c].filled)) {
-          // Trigger: add ALL active cells in this row (including blocked) to explode
+          clearedRows.add(r)
           for (let c = 0; c < gridCols; c++) {
             if (newGrid[r][c].active) toExplode.add(`${r},${c}`)
           }
@@ -699,7 +701,7 @@ export const useGridStore = create<GridState>((set, get) => ({
           if (newGrid[r][c].active && !newGrid[r][c].blocked) fillableRows.push(r)
         }
         if (fillableRows.length > 0 && fillableRows.every((r) => newGrid[r][c].filled)) {
-          // Trigger: add ALL active cells in this column (including blocked) to explode
+          clearedCols.add(c)
           for (let r = 0; r < gridRows; r++) {
             if (newGrid[r][c].active) toExplode.add(`${r},${c}`)
           }
@@ -708,13 +710,16 @@ export const useGridStore = create<GridState>((set, get) => ({
 
       if (toExplode.size > 0) {
         const explodeArray = Array.from(toExplode)
-        // Only count non-blocked cells for bonus
+        // Only count non-blocked cells for base explosion bonus
         const fillableExploded = explodeArray.filter((key) => {
           const [r, c] = key.split(',').map(Number)
           return !newGrid[r][c].blocked
         })
         const explodeBonus = fillableExploded.length * 10
-        const totalScore = score + wordScore + explodeBonus
+        // WOW bonus: clearing 2+ lines at once (rows + cols combined)
+        const totalLines = clearedRows.size + clearedCols.size
+        const wowBonus = totalLines >= 2 ? (totalLines - 1) * 50 : 0
+        const totalScore = score + wordScore + explodeBonus + wowBonus
 
         // Phase 1: keep cells alive so the renderer can animate them out
         set({
@@ -722,7 +727,7 @@ export const useGridStore = create<GridState>((set, get) => ({
           currentWord: '', usedTileIndices: [],
           score: totalScore,
           explodingCells: explodeArray,
-          feedback: { text: `!פיצוץ 💥 +${explodeBonus} נק׳`, type: 'success' },
+          feedback: { text: totalLines >= 2 ? `!וואו 🤩 +${explodeBonus + wowBonus} נק׳` : `!פיצוץ 💥 +${explodeBonus} נק׳`, type: 'success' },
         })
 
         // Phase 2: after animation completes, deactivate cells + check stage clear
