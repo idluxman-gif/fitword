@@ -981,22 +981,23 @@ function GridFeedbackBar() {
   // Hide text feedback when WOW — the overlay handles that visually
   const isWow = feedback?.text?.includes('וואו') ?? false
   return (
-    <div className="h-10 flex items-center justify-center px-4">
+    <div className="h-12 flex items-center justify-center px-4">
       <AnimatePresence mode="wait">
         {feedback && !isWow && (
           <motion.div
             key={feedback.text}
-            initial={{ opacity: 0, scale: 0.75, y: 6 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
+            initial={{ opacity: 0, scale: 0.6, y: 8 }}
+            animate={{ opacity: 1, scale: [0.6, 1.12, 1], y: 0 }}
             exit={{ opacity: 0, scale: 0.85, y: -6 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-            className={`px-4 py-1 rounded font-black text-sm tracking-widest
-              ${feedback.type === 'success'
-                ? 'bg-black/80 text-white'
-                : feedback.type === 'error'
-                  ? 'bg-black/80 text-error'
-                  : 'bg-black/80 text-yellow-400'
-              }`}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="px-5 py-1.5 font-black text-xl tracking-widest"
+            style={{
+              background: 'rgba(0,0,0,0.82)',
+              color: feedback.type === 'error' ? '#ef4444' : feedback.type === 'warning' ? '#facc15' : '#ffffff',
+              textShadow: feedback.type === 'success'
+                ? '0 0 8px rgba(255,255,255,0.9), 0 0 20px rgba(255,255,255,0.5), 0 0 40px rgba(255,220,100,0.3)'
+                : 'none',
+            }}
           >
             {feedback.text}
           </motion.div>

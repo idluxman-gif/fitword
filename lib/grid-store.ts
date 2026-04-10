@@ -727,7 +727,7 @@ export const useGridStore = create<GridState>((set, get) => ({
           currentWord: '', usedTileIndices: [],
           score: totalScore,
           explodingCells: explodeArray,
-          feedback: { text: totalLines >= 2 ? `!וואו 🤩 +${explodeBonus + wowBonus} נק׳` : `!פיצוץ 💥 +${explodeBonus} נק׳`, type: 'success' },
+          feedback: { text: totalLines >= 2 ? `!וואו 🤩 +${explodeBonus + wowBonus} נק׳` : `+${explodeBonus} נק׳`, type: 'success' },
         })
 
         // Phase 2: after animation completes, deactivate cells + check stage clear
