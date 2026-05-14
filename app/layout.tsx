@@ -19,7 +19,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
-  themeColor: '#7C3AED',
+  themeColor: '#fb7185',
 }
 
 export default function RootLayout({
@@ -31,8 +31,14 @@ export default function RootLayout({
     <html lang="he" dir="rtl">
       <head>
         <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&family=Sora:wght@600;700;800;900&family=Bungee&display=swap"
+          rel="stylesheet"
+        />
       </head>
-      <body className="bg-bg text-white antialiased">
+      <body className="bg-bg text-white antialiased font-heebo">
         <ServiceWorkerRegister />
         {children}
       </body>

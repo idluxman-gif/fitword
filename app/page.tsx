@@ -9,6 +9,191 @@ import { useDesignerStore, type CustomLevel, type LevelPack } from '@/lib/design
 import { playTileTap, playValidWord, playInvalidWord, playPerfectFit, playStageClear, playTimerWarning, playExplosion } from '@/lib/sound'
 import { fetchLeaderboard, checkQualifies, submitScore, type LeaderboardEntry } from '@/lib/leaderboard'
 
+// ════════════════════════════════════════════════════════════════════
+// Shared design primitives — Sunset Coral premium UI
+// ════════════════════════════════════════════════════════════════════
+
+function SceneBackground() {
+  return (
+    <>
+      <div className="scene-bg" />
+      <div className="scene-vignette" />
+    </>
+  )
+}
+
+const Icon = {
+  Crown: ({ size = 36 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 36 36">
+      <defs>
+        <linearGradient id="crwnG" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="#fff7c0" />
+          <stop offset="0.5" stopColor="#ffe27a" />
+          <stop offset="1" stopColor="#c47b14" />
+        </linearGradient>
+      </defs>
+      <path d="M4 12 L9 22 L13 14 L18 24 L23 14 L27 22 L32 12 L29 26 L7 26 Z"
+        fill="url(#crwnG)" stroke="#7a4500" strokeWidth="1.4" strokeLinejoin="round" />
+      <circle cx="4" cy="12" r="2.4" fill="#ec4899" stroke="#7a4500" strokeWidth="1" />
+      <circle cx="18" cy="9" r="2.6" fill="#fb7185" stroke="#7a4500" strokeWidth="1" />
+      <circle cx="32" cy="12" r="2.4" fill="#22c55e" stroke="#7a4500" strokeWidth="1" />
+      <rect x="7" y="26" width="22" height="3" fill="#c47b14" stroke="#7a4500" strokeWidth="1" />
+    </svg>
+  ),
+  Star: ({ size = 22, filled = true }: { size?: number; filled?: boolean }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24">
+      <defs>
+        <linearGradient id={`starG-${size}`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="#fff7c0" />
+          <stop offset="0.5" stopColor="#ffe27a" />
+          <stop offset="1" stopColor="#f5b942" />
+        </linearGradient>
+      </defs>
+      <path d="M12 2 L14.6 8.6 L22 9.3 L16.3 14.1 L18 21.2 L12 17.3 L6 21.2 L7.7 14.1 L2 9.3 L9.4 8.6 Z"
+        fill={filled ? `url(#starG-${size})` : 'rgba(255,255,255,0.1)'}
+        stroke={filled ? '#8a5414' : 'rgba(255,255,255,0.2)'} strokeWidth="1" strokeLinejoin="round" />
+    </svg>
+  ),
+  Trophy: ({ size = 28 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 28 28">
+      <defs>
+        <linearGradient id={`trG-${size}`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="#ffe27a" />
+          <stop offset="1" stopColor="#c47b14" />
+        </linearGradient>
+      </defs>
+      <path d="M7 4 H21 V11 C21 15 18 18 14 18 C10 18 7 15 7 11 Z" fill={`url(#trG-${size})`} stroke="#7a4500" strokeWidth="1.4" />
+      <path d="M3 5 V8 C3 10 5 11 7 11 M25 5 V8 C25 10 23 11 21 11" fill="none" stroke="#7a4500" strokeWidth="1.4" />
+      <rect x="10" y="18" width="8" height="4" fill="#c47b14" stroke="#7a4500" strokeWidth="1.4" />
+      <rect x="7" y="22" width="14" height="3" rx="1" fill="#7a4500" />
+    </svg>
+  ),
+  Lightning: ({ size = 18 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24">
+      <path d="M13 2 L4 14 L11 14 L9 22 L20 9 L13 9 Z" fill="#fde047" stroke="#854d0e" strokeWidth="1" strokeLinejoin="round" />
+    </svg>
+  ),
+  Gem: ({ size = 20 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24">
+      <defs>
+        <linearGradient id={`gemG-${size}`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="#c8f0ff" />
+          <stop offset="1" stopColor="#4fb3e8" />
+        </linearGradient>
+      </defs>
+      <path d="M12 2 L4 8 L12 22 L20 8 Z" fill={`url(#gemG-${size})`} stroke="#1b5d8a" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M4 8 L20 8 M12 2 L8 8 L12 22 M12 2 L16 8 L12 22" stroke="rgba(255,255,255,0.5)" strokeWidth="0.8" fill="none" />
+    </svg>
+  ),
+}
+
+function TimerRing({ time, totalTime = 90, low = false }: { time: number; totalTime?: number; low?: boolean }) {
+  const minutes = Math.floor(time / 60)
+  const seconds = time % 60
+  const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`
+  const pct = Math.max(0, Math.min(1, time / totalTime))
+  const circumference = 2 * Math.PI * 21
+  return (
+    <div className={`timer-ring${low ? ' low' : ''}`}>
+      <svg width="48" height="48">
+        <defs>
+          <linearGradient id="timerGrad" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0" stopColor="#fda4af" />
+            <stop offset="1" stopColor="#fb7185" />
+          </linearGradient>
+          <linearGradient id="timerGradLow" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0" stopColor="#fca5a5" />
+            <stop offset="1" stopColor="#ef4444" />
+          </linearGradient>
+        </defs>
+        <circle cx="24" cy="24" r="21" className="bg" strokeWidth="4" fill="none" />
+        <circle cx="24" cy="24" r="21" className="fg" strokeWidth="4" fill="none"
+          strokeLinecap="round" strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - pct)} />
+      </svg>
+      <div className="lbl">{timeStr}</div>
+    </div>
+  )
+}
+
+// Confetti — purely visual, deterministic per seed so it doesn't reshuffle on re-render
+function Confetti({ count = 40, seed = 0 }: { count?: number; seed?: number }) {
+  const pieces = useMemo(() => {
+    const colors = ['#fb7185', '#ec4899', '#fbbf24', '#22c55e', '#0ea5e9', '#f97316', '#facc15', '#fb923c']
+    return Array.from({ length: count }).map((_, i) => {
+      const r = (n: number) => ((Math.sin((seed * 9301 + i * 49297 + n * 13) % 233280) + 1) / 2)
+      return {
+        left: r(1) * 100,
+        cx: (r(2) - 0.5) * 200,
+        size: 6 + r(3) * 10,
+        color: colors[Math.floor(r(4) * colors.length)],
+        rot: r(5) * 360,
+        delay: r(6) * 0.6,
+        dur: 1.6 + r(7) * 1.8,
+        shape: r(8) > 0.5 ? 'square' : 'circle',
+      }
+    })
+  }, [count, seed])
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 40 }}>
+      {pieces.map((p, i) => (
+        <div key={i} className="confetti-piece"
+          style={{
+            left: `${p.left}%`, top: -20,
+            width: p.size, height: p.size,
+            background: p.color,
+            borderRadius: p.shape === 'circle' ? '50%' : '2px',
+            transform: `rotate(${p.rot}deg)`,
+            animation: `confetti-fall ${p.dur}s ${p.delay}s linear infinite`,
+            ['--cx' as any]: `${p.cx}px`,
+            boxShadow: `0 0 8px ${p.color}66`,
+          }} />
+      ))}
+    </div>
+  )
+}
+
+// Burst rays for WOW splash
+function BurstRays({ size = 320 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 320 320" style={{ display: 'block', pointerEvents: 'none' }}>
+      <defs>
+        <radialGradient id="burstG" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stopColor="rgba(255,226,122,0.45)" />
+          <stop offset="0.5" stopColor="rgba(245,185,66,0.18)" />
+          <stop offset="1" stopColor="transparent" />
+        </radialGradient>
+        <linearGradient id="rayG" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="rgba(255,255,255,0.9)" />
+          <stop offset="1" stopColor="rgba(255,255,255,0)" />
+        </linearGradient>
+      </defs>
+      <circle cx="160" cy="160" r="150" fill="url(#burstG)" />
+      {Array.from({ length: 12 }).map((_, i) => (
+        <polygon key={i} points="160,160 154,40 166,40" fill="url(#rayG)"
+          transform={`rotate(${i * 30} 160 160)`} opacity="0.7" />
+      ))}
+    </svg>
+  )
+}
+
+// eXacto wordmark — lowercase 'e' + 'acto' in coral brand gradient, 'X' in gold gradient
+function ExactoLogo({ size = 76 }: { size?: number }) {
+  return (
+    <div className="brand-text shine"
+      style={{
+        fontSize: size, lineHeight: 0.9, padding: '4px 0',
+        fontFamily: 'Sora, sans-serif', fontWeight: 900, letterSpacing: '-0.05em',
+        direction: 'ltr',
+      }}>
+      e<span style={{
+        background: 'linear-gradient(180deg,#fff7c0 0%,#ffe27a 30%,#f5b942 55%,#c47b14 75%,#ffe27a 100%)',
+        WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
+      }}>X</span>acto
+    </div>
+  )
+}
+
 // ─── Init Hook ───
 function useInit() {
   const initBests = useGameStore((s) => s.initBests)
@@ -106,15 +291,20 @@ function LeaveConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-builder rounded-2xl p-6 max-w-[300px] w-full text-center border border-gray-700/50"
+        className="rounded-2xl p-6 max-w-[300px] w-full text-center border border-white/10"
+        style={{
+          background: 'linear-gradient(180deg, rgba(46,10,31,0.95), rgba(26,5,16,0.95))',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 40px rgba(0,0,0,0.6)',
+          backdropFilter: 'blur(10px)',
+        }}
       >
         <p className="text-white text-lg font-bold mb-2">?לצאת מהמשחק</p>
         <p className="text-gray-400 text-sm mb-5">הפעולה תסיים את התור שלך</p>
         <div className="flex gap-3">
-          <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-gray-700 text-white font-medium">
+          <button onClick={onCancel} className="btn-3d ghost flex-1" style={{ fontSize: 14, padding: '12px 0' }}>
             המשך לשחק
           </button>
-          <button onClick={onConfirm} className="flex-1 py-3 rounded-xl bg-error text-white font-medium">
+          <button onClick={onConfirm} className="btn-3d danger flex-1" style={{ fontSize: 14, padding: '12px 0' }}>
             יציאה
           </button>
         </div>
@@ -139,35 +329,22 @@ function TopBar() {
 
   const filledLen = filledWords.reduce((sum, w) => sum + w.length, 0)
   const remaining = targetLength - filledLen
-
-  const minutes = Math.floor(timeLeft / 60)
-  const seconds = timeLeft % 60
-  const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`
   const isLow = timeLeft <= 15
 
   return (
-    <div className="px-3 py-2 space-y-1">
-      <div className="flex items-center justify-between">
-        {/* Timer */}
-        <div className="relative flex items-center">
-          {isLow && (
-            <motion.div
-              animate={{ scale: [1, 1.6, 1], opacity: [0.4, 0, 0.4] }}
-              transition={{ duration: 0.8, repeat: Infinity }}
-              className="absolute inset-0 rounded-lg bg-error/20 -m-1"
-            />
-          )}
-          <span className={`text-lg font-bold tabular-nums transition-all duration-300 relative ${isLow ? 'timer-danger' : timerFlash ? 'text-success' : 'text-white'}`}>
-            {timeStr}
-          </span>
+    <div className="px-3 py-2">
+      <div className="flex items-center justify-between gap-2">
+        {/* Timer ring */}
+        <div className="relative">
+          <TimerRing time={timeLeft} totalTime={90} low={isLow} />
           <AnimatePresence>
             {timerFlash && (
               <motion.span
                 initial={{ opacity: 1, y: 0 }}
-                animate={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 0, y: -28 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.6 }}
-                className="absolute -top-4 right-0 text-xs font-bold text-success"
+                transition={{ duration: 0.7 }}
+                className="absolute -top-2 right-0 text-xs font-black text-success"
               >
                 +5s
               </motion.span>
@@ -175,41 +352,45 @@ function TopBar() {
           </AnimatePresence>
         </div>
 
-        {/* Stage indicator */}
-        <div className="text-xs text-gray-400">
-          שלב {stage}
+        {/* Center: stage + score */}
+        <div className="flex-1 flex flex-col items-center gap-1">
+          <div className="stage-badge">
+            <Icon.Crown size={14} />
+            <span>שלב {stage}</span>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <motion.span
+              key={score}
+              initial={{ scale: 1.4 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+              className="score-gold num"
+              style={{ fontSize: 26, lineHeight: 1 }}
+            >
+              {score.toLocaleString()}
+            </motion.span>
+            <span className="text-[10px] font-bold text-white/50">נק'</span>
+            {mode === 'score_rush' && scoreTarget > 0 && (
+              <span className="text-[10px] text-white/40">/ {scoreTarget}</span>
+            )}
+          </div>
         </div>
 
-        {/* Score */}
-        <div className="text-lg font-bold text-accent flex items-baseline gap-1">
-          <motion.span
-            key={score}
-            initial={{ scale: 1.5 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-            className="inline-block tabular-nums"
-          >
-            {score}
-          </motion.span>
-          <span>נק׳</span>
-          {mode === 'score_rush' && (
-            <span className="text-xs text-gray-400">/ {scoreTarget}</span>
-          )}
-        </div>
-
-        {/* Remaining + Mute + Leave */}
+        {/* Remaining counter + mute + leave */}
         <div className="flex items-center gap-1">
-          <span className="text-sm text-gray-400">נשארו {remaining}</span>
+          <div className="hud-pill" style={{ padding: '4px 10px 4px 4px' }}>
+            <div className="ico" style={{ width: 22, height: 22, fontSize: 12 }}>
+              <span className="num" style={{ fontWeight: 900 }}>{remaining}</span>
+            </div>
+          </div>
           <MuteButton />
-          <button onClick={() => setShowLeave(true)} className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-error text-sm">✕</button>
+          <button onClick={() => setShowLeave(true)} className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-error text-sm" aria-label="יציאה">✕</button>
         </div>
       </div>
 
       <AnimatePresence>
         {showLeave && <LeaveConfirm onConfirm={() => { setShowLeave(false); goHome() }} onCancel={() => setShowLeave(false)} />}
       </AnimatePresence>
-
-      {/* Swap button for Endless */}
     </div>
   )
 }
@@ -219,40 +400,36 @@ function TargetRow() {
   const targetLength = useGameStore((s) => s.targetLength)
   const filledWords = useGameStore((s) => s.filledWords)
 
-  // Build array of characters with word boundaries
   const cells: { char: string; wordIdx: number }[] = []
   filledWords.forEach((word, wordIdx) => {
-    for (let i = 0; i < word.length; i++) {
-      cells.push({ char: word[i], wordIdx })
-    }
+    for (let i = 0; i < word.length; i++) cells.push({ char: word[i], wordIdx })
   })
+  const emptyCount = Math.max(0, targetLength - cells.length)
+  const lastWordIdx = filledWords.length - 1
 
-  const emptyCount = targetLength - cells.length
-
-  // RTL: empty slots first (left side), then filled chars (right side)
   return (
     <div className="px-3 py-3">
-      <div className="flex flex-row-reverse flex-wrap justify-center gap-[3px]">
-        {/* Filled characters — from the right */}
-        {cells.map((cell, i) => (
-          <motion.div
-            key={`filled-${i}`}
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-            className={`w-[22px] h-[34px] rounded-md flex items-center justify-center text-sm font-bold
-              ${cell.wordIdx % 2 === 0 ? 'target-cell-even' : 'target-cell-odd'}
-            `}
-          >
-            {cell.char}
-          </motion.div>
-        ))}
-        {/* Empty slots — on the left */}
+      <div className="row-rtl flex-wrap justify-center" style={{ gap: 4 }}>
+        {cells.map((cell, i) => {
+          const isLastWord = cell.wordIdx === lastWordIdx
+          const wordStartIdx = cells.findIndex((c) => c.wordIdx === cell.wordIdx)
+          const offsetInWord = i - wordStartIdx
+          return (
+            <div
+              key={`filled-${i}`}
+              className={`slot filled${cell.wordIdx % 2 === 1 ? ' word-b' : ''}`}
+              style={
+                isLastWord
+                  ? { animation: 'drop-bounce 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards', animationDelay: `${offsetInWord * 0.05}s` }
+                  : undefined
+              }
+            >
+              {cell.char}
+            </div>
+          )
+        })}
         {Array.from({ length: emptyCount }).map((_, i) => (
-          <div
-            key={`empty-${i}`}
-            className="w-[22px] h-[34px] rounded-md target-cell-empty"
-          />
+          <div key={`empty-${i}`} className="slot" />
         ))}
       </div>
     </div>
@@ -292,48 +469,33 @@ function WordBuilder() {
   }
 
   return (
-    <div className="mx-4 p-3 rounded-xl bg-builder border border-gray-800/50 space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={clearWord}
-          className="w-11 h-11 rounded-xl bg-error/20 text-error text-lg font-bold flex items-center justify-center shrink-0"
-          aria-label="מחק מילה"
-        >
-          ✕
-        </motion.button>
-
-        <div className={`flex-1 min-h-[44px] flex items-center justify-center rounded-xl bg-gray-800/30 px-3 transition-all duration-200 ${currentWord ? 'word-display-active' : ''}`}>
-          <span className="text-2xl font-bold tracking-wider">
-            {currentWord || <span className="text-gray-600 text-base">הקש על אותיות</span>}
-          </span>
+    <div className="builder">
+      <div className="flex items-center gap-2.5">
+        <button onClick={clearWord} className="builder-btn clear" aria-label="מחק מילה">✕</button>
+        <div className={`builder-display flex-1${currentWord ? '' : ' empty'}`}>
+          {currentWord || 'הקש על אותיות'}
         </div>
-
-        <motion.button
-          whileTap={{ scale: 0.9 }}
+        <button
           onClick={handleSubmit}
           disabled={currentWord.length === 0}
-          className={`w-11 h-11 rounded-xl text-lg font-bold flex items-center justify-center shrink-0
-            ${currentWord.length > 0 ? 'bg-success/20 text-success' : 'bg-gray-800/30 text-gray-600'}`}
+          className={`builder-btn submit${currentWord.length === 0 ? ' dim' : ''}`}
           aria-label="שלח מילה"
-        >
-          ✓
-        </motion.button>
+        >✓</button>
       </div>
 
       {/* Undo + shuffle row — hidden in Score Rush (shuffle is in top bar) */}
       {!currentWord && mode !== 'score_rush' && (
-        <div className="flex gap-2">
+        <div className="flex gap-1.5 mt-2">
           {filledWords.length > 0 && (
             <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} whileTap={{ scale: 0.95 }}
-              onClick={undoLastWord}
-              className="flex-1 py-1.5 rounded-lg text-xs text-gray-400 bg-gray-800/30 hover:text-white transition-colors">
-              ↩ ביטול ({filledWords[filledWords.length - 1]})
+              onClick={undoLastWord} className="builder-tool">
+              ↶ ביטול ({filledWords[filledWords.length - 1]})
             </motion.button>
           )}
           <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} whileTap={{ scale: 0.95 }}
             onClick={shuffleLetters}
-            className={`${filledWords.length > 0 ? '' : 'flex-1'} px-3 py-1.5 rounded-lg text-xs transition-colors ${score >= 50 ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-gray-600 bg-gray-800/20'}`}>
+            className={`builder-tool gold ${filledWords.length > 0 ? '' : 'flex-1'}`}
+            style={score < 50 ? { opacity: 0.5 } : {}}>
             🔀 ערבוב (50-)
           </motion.button>
         </div>
@@ -364,20 +526,14 @@ function LetterTiles() {
         {letters.map((letter, i) => {
           const isUsed = usedTileIndices.includes(i)
           return (
-          <motion.button
-            key={`${letter}-${i}`}
-            whileTap={isUsed ? {} : { scale: 0.86, y: 2 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-            onClick={() => handleTap(i)}
-            disabled={isUsed}
-            className={`w-[52px] h-[52px] rounded-xl text-xl font-bold transition-opacity duration-100
-              ${isUsed
-                ? 'letter-tile-used text-white/20 cursor-not-allowed'
-                : 'letter-tile text-white'
-              }`}
-          >
-            {letter}
-          </motion.button>
+            <button
+              key={`${letter}-${i}`}
+              onClick={() => handleTap(i)}
+              disabled={isUsed}
+              className={`tile${isUsed ? ' used' : ''}`}
+            >
+              {letter}
+            </button>
           )
         })}
       </div>
@@ -414,12 +570,11 @@ function FeedbackBar() {
   )
 }
 
-// ─── Stage Clear Screen (Endless / Score Rush) ───
+// ─── Stage Clear Screen (Score Rush stage progression) ───
 function StageClearScreen() {
   const status = useGameStore((s) => s.status)
   const score = useGameStore((s) => s.score)
   const stage = useGameStore((s) => s.stage)
-  const mode = useGameStore((s) => s.mode)
   const nextStage = useGameStore((s) => s.nextStage)
   const filledWords = useGameStore((s) => s.filledWords)
 
@@ -427,50 +582,68 @@ function StageClearScreen() {
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="fixed inset-0 flex flex-col items-center justify-center z-50 px-6"
-      style={{ background: 'radial-gradient(ellipse 70% 50% at 50% 30%, rgba(245,158,11,0.15) 0%, transparent 60%), #0F0F1A' }}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      className="fixed inset-0 flex flex-col items-center justify-center z-50 px-6 overflow-hidden"
     >
-      <motion.div
-        initial={{ scale: 0, rotate: -30 }}
-        animate={{ scale: 1, rotate: 0 }}
-        transition={{ type: 'spring', stiffness: 250, damping: 12 }}
-        className="text-7xl mb-3"
-      >
-        ⭐
-      </motion.div>
-      <motion.h1
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="text-3xl font-black text-gold mb-2"
-        style={{ textShadow: '0 0 20px rgba(245,158,11,0.5)' }}
-      >
-        !שלב {stage} הושלם
-      </motion.h1>
-      <motion.div
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.3 }}
-        className="text-center space-y-1 mb-6"
-      >
-        <p className="text-lg text-white">{score} :ניקוד כולל</p>
-        <p className="text-gray-400">{filledWords.join(' • ')}</p>
-      </motion.div>
+      <SceneBackground />
+      <Confetti count={50} seed={7} />
+      <div className="absolute sunburst-gold pointer-events-none"
+        style={{ top: '12%', left: '50%', transform: 'translateX(-50%)', width: 500, height: 500 }} />
 
-      {/* AD_SLOT: between_stages */}
+      <div className="relative flex flex-col items-center gap-3 max-w-[320px]">
+        <motion.div initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 250, damping: 12 }}>
+          <Icon.Crown size={88} />
+        </motion.div>
 
-      <motion.button
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={nextStage}
-        className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg shadow-accent/30"
-      >
-        המשך ←
-      </motion.button>
+        <motion.div className="stage-banner"
+          initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.15, type: 'spring', stiffness: 300, damping: 18 }}>
+          STAGE COMPLETE
+        </motion.div>
+
+        <div className="gold-text inline-flex items-baseline" style={{ fontSize: 64, lineHeight: 0.9, gap: 12, flexDirection: 'row-reverse' }}>
+          <span style={{ fontFamily: 'Heebo' }}>שלב</span>
+          <span style={{ fontFamily: 'Sora' }}>{stage}</span>
+        </div>
+
+        <div className="flex gap-1 mb-2">
+          {[1, 2, 3].map((i) => (
+            <motion.div key={i}
+              initial={{ scale: 0, rotate: -45 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ delay: 0.5 + i * 0.12, type: 'spring', stiffness: 300, damping: 14 }}
+              style={{ transform: i === 2 ? 'translateY(-6px)' : undefined }}>
+              <Icon.Star size={i === 2 ? 50 : 42} />
+            </motion.div>
+          ))}
+        </div>
+
+        <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.7 }}
+          className="w-full p-4 rounded-2xl border border-white/10"
+          style={{
+            background: 'linear-gradient(180deg, rgba(15,8,30,0.85), rgba(10,4,20,0.85))',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 24px rgba(0,0,0,0.5)',
+          }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-white/55 font-bold">ניקוד כולל</span>
+            <span className="num font-sora font-black text-2xl" style={{ color: '#ffe27a' }}>{score.toLocaleString()}</span>
+          </div>
+          {filledWords.length > 0 && (
+            <p className="text-xs text-white/50 text-center mt-1">{filledWords.slice(-6).join(' • ')}</p>
+          )}
+        </motion.div>
+
+        <motion.button initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.9 }}
+          onClick={nextStage}
+          className="btn-3d gold shine w-full max-w-[280px] mt-2"
+          style={{ fontSize: 19 }}>
+          <span>שלב {stage + 1}</span>
+          <span style={{ fontSize: 22, marginRight: 4 }}>‹</span>
+        </motion.button>
+      </div>
     </motion.div>
   )
 }
@@ -579,7 +752,7 @@ function LeaderboardSection({ mode, value, personalBest, personalLabel, active }
   )
 }
 
-// ─── Result Screen ───
+// ─── Result Screen — Perfect Fit / Loss ───
 function ResultScreen() {
   const status = useGameStore((s) => s.status)
   const score = useGameStore((s) => s.score)
@@ -592,114 +765,119 @@ function ResultScreen() {
   const bestScoreRush = useGameStore((s) => s.bestScoreRush)
 
   const isWin = status === 'won'
+  const isNewBest = score > 0 && score >= bestScoreRush
 
   if (status !== 'won' && status !== 'lost') return null
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="fixed inset-0 flex flex-col items-center justify-center z-50 px-6 overflow-y-auto py-8"
-      style={{ background: isWin ? 'radial-gradient(ellipse 80% 60% at 50% 30%, rgba(124,58,237,0.18) 0%, transparent 60%), #0F0F1A' : 'rgba(15,15,26,0.97)' }}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      className="fixed inset-0 flex flex-col items-center z-50 px-5 overflow-y-auto py-6"
     >
-      {isWin ? (
-        <>
-          <motion.div
-            initial={{ scale: 0, rotate: -20 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: 'spring', stiffness: 250, damping: 12 }}
-            className="text-8xl mb-4"
-          >
-            🎉
-          </motion.div>
-          <motion.h1
-            initial={{ y: 20, opacity: 0, scale: 0.8 }}
-            animate={{ y: 0, opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-            className="text-4xl font-black mb-2 logo-gradient"
-          >
-            !Perfect Fit
-          </motion.h1>
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="text-center space-y-1 mb-8"
-          >
-            <p className="text-xl text-white">{score} :ניקוד</p>
-            <p className="text-gray-400">נשארו {timeLeft} שניות</p>
-            <p className="text-gray-400">{filledWords.join(' • ')}</p>
-          </motion.div>
-          {[...Array(20)].map((_, i) => {
-            const COLORS = ['#A855F7','#7C3AED','#F59E0B','#22C55E','#EC4899','#0EA5E9','#F97316','#EAB308','#C084FC','#34D399']
-            const DISTANCES = [130,90,155,80,145,110,160,95,140,120,170,85,150,105,135,75,165,100,145,115]
-            const SIZES = [10,14,8,12,10,16,8,12,10,14,8,12,10,16,8,12,10,14,8,12]
-            const angle = (i * Math.PI * 2) / 20
-            return (
-              <motion.div
-                key={i}
-                initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
-                animate={{
-                  scale: [0, 1.3, 0],
-                  x: Math.cos(angle) * DISTANCES[i],
-                  y: Math.sin(angle) * DISTANCES[i],
-                  opacity: [1, 1, 0],
-                }}
-                transition={{ duration: 0.7 + (i % 5) * 0.12, delay: 0.03 * i }}
-                className="absolute rounded-full"
-                style={{ width: SIZES[i], height: SIZES[i], backgroundColor: COLORS[i % COLORS.length] }}
-              />
-            )
-          })}
-        </>
-      ) : (
-        <>
-          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-5xl mb-4">
-            😔
-          </motion.div>
-          <motion.h1
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className="text-2xl font-bold text-gray-300 mb-2"
-          >
-            {`סיום בשלב ${stage}`}
-          </motion.h1>
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="text-center space-y-1 mb-8"
-          >
-            <p className="text-lg text-gray-400">{score} :ניקוד</p>
-            {filledWords.length > 0 && <p className="text-gray-500">{filledWords.join(' • ')}</p>}
-          </motion.div>
-        </>
+      <SceneBackground />
+      {isWin && <Confetti count={70} seed={11} />}
+      {isWin && (
+        <div className="absolute sunburst-coral pointer-events-none"
+          style={{ top: '20%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, height: 600 }} />
       )}
 
-      <LeaderboardSection mode={mode} value={score} personalBest={bestScoreRush}
-        personalLabel="נק׳" active={status === 'won' || status === 'lost'} />
+      <div className="relative flex flex-col items-center w-full max-w-[340px] gap-3 mt-2">
+        {isWin ? (
+          <>
+            {/* 5 stars */}
+            <motion.div className="flex gap-1.5"
+              initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.5 }}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Icon.Star key={i} size={i === 3 ? 26 : 20} />
+              ))}
+            </motion.div>
 
-      <div className="flex flex-col gap-3 w-full max-w-[250px]">
-        <motion.button
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: isWin ? 0.6 : 0.4 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => startGame(mode)}
-          className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg shadow-accent/30"
-        >
-          !שחק שוב
-        </motion.button>
-        <motion.button
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: isWin ? 0.7 : 0.5 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={goHome}
-          className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium"
-        >
-          תפריט ראשי
-        </motion.button>
+            {/* PERFECT */}
+            <div className="chrome-text" style={{
+              fontFamily: 'Sora', fontSize: 48, lineHeight: 0.9, letterSpacing: 0,
+              fontWeight: 900, direction: 'ltr', whiteSpace: 'nowrap', marginBottom: -6,
+            }}>PERFECT</div>
+
+            {/* FIT! */}
+            <div className="gold-text" style={{
+              fontFamily: 'Sora', fontSize: 92, lineHeight: 0.9, letterSpacing: '-0.03em',
+              fontWeight: 900, direction: 'ltr', whiteSpace: 'nowrap', marginBottom: 6,
+            }}>FIT!</div>
+
+            {/* Hebrew subtitle */}
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="font-heebo font-black text-white text-center"
+              style={{ fontSize: 22, textShadow: '0 0 14px rgba(251,113,133,0.7), 0 2px 4px rgba(0,0,0,0.6)' }}>
+              !השורה מולאה במדויק
+            </motion.div>
+
+            {/* FINAL SCORE */}
+            <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.55 }}
+              className="flex flex-col items-center mt-2">
+              <div style={{ fontFamily: 'Sora', fontSize: 12, color: 'rgba(255,255,255,0.55)', fontWeight: 800, letterSpacing: '0.16em' }}>FINAL SCORE</div>
+              <div className="gold-text num" style={{ fontSize: 58, lineHeight: 1 }}>{score.toLocaleString()}</div>
+            </motion.div>
+
+            {timeLeft > 0 && (
+              <p className="text-xs text-white/50">+{timeLeft} שניות נותרו</p>
+            )}
+
+            {isNewBest && (
+              <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.85, type: 'spring', stiffness: 300, damping: 16 }}
+                className="pb-pill mt-1">
+                <Icon.Trophy size={14} />
+                <span>NEW PERSONAL BEST</span>
+              </motion.div>
+            )}
+          </>
+        ) : (
+          <>
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 250, damping: 14 }}
+              className="text-6xl mb-1">😔</motion.div>
+            <motion.h1 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+              className="text-2xl font-black text-white/85 mb-1">
+              {`סיום בשלב ${stage}`}
+            </motion.h1>
+            <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="flex flex-col items-center">
+              <div style={{ fontFamily: 'Sora', fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 800, letterSpacing: '0.16em' }}>FINAL SCORE</div>
+              <div className="gold-text num" style={{ fontSize: 48, lineHeight: 1 }}>{score.toLocaleString()}</div>
+            </motion.div>
+            {filledWords.length > 0 && (
+              <p className="text-xs text-white/50 text-center max-w-[260px]">{filledWords.slice(-6).join(' • ')}</p>
+            )}
+            {isNewBest && score > 0 && (
+              <div className="pb-pill mt-1">
+                <Icon.Trophy size={14} />
+                <span>NEW PERSONAL BEST</span>
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="w-full mt-3">
+          <LeaderboardSection mode={mode} value={score} personalBest={bestScoreRush}
+            personalLabel="נק׳" active={status === 'won' || status === 'lost'} />
+        </div>
+
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: isWin ? 1 : 0.5 }}
+          className="flex flex-col gap-2.5 w-full max-w-[280px]">
+          <button onClick={() => startGame(mode)} className={`btn-3d ${isWin ? 'success' : ''} shine w-full`}>
+            <Icon.Lightning size={18} />
+            <span>שחק שוב</span>
+          </button>
+          <div className="flex gap-2">
+            <button onClick={goHome} className="btn-3d ghost flex-1">תפריט</button>
+            <button className="btn-3d ghost flex-1">שתף 📤</button>
+          </div>
+        </motion.div>
       </div>
     </motion.div>
   )
@@ -845,25 +1023,38 @@ function GridTopBar() {
   const activeCells = grid.flat().filter((c) => c.active && !c.blocked)
   const totalCells = activeCells.length
   const filledCells = activeCells.filter((c) => c.filled).length
-
-  const minutes = Math.floor(timeLeft / 60)
-  const seconds = timeLeft % 60
-  const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`
   const isLow = timeLeft <= 15
 
   return (
-    <div className="flex items-center justify-between px-3 py-2">
-      <span className={`text-lg font-bold tabular-nums ${isLow ? 'text-error animate-pulse' : 'text-white'}`}>
-        {timeStr}
-      </span>
-      <span className="text-xs text-gray-400">שלב {stage}</span>
-      <span className="text-lg font-bold text-accent">{score} נק׳</span>
-      <div className="flex items-center gap-1">
-        <span className="text-sm text-gray-400">{filledCells}/{totalCells}</span>
-        <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center text-gray-400">
-          {muted ? '🔇' : '🔊'}
-        </button>
-        <button onClick={() => setShowLeave(true)} className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-error text-sm">✕</button>
+    <div className="px-3 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <TimerRing time={timeLeft} totalTime={120} low={isLow} />
+        <div className="flex-1 flex flex-col items-center gap-1">
+          <div className="stage-badge">
+            <Icon.Crown size={14} />
+            <span>שלב {stage}</span>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <motion.span key={score}
+              initial={{ scale: 1.4 }} animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+              className="score-gold num" style={{ fontSize: 26, lineHeight: 1 }}>
+              {score.toLocaleString()}
+            </motion.span>
+            <span className="text-[10px] font-bold text-white/50">נק'</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="hud-pill" style={{ padding: '4px 10px 4px 4px' }}>
+            <div className="ico" style={{ width: 22, height: 22, fontSize: 10 }}>
+              <span className="num" style={{ fontWeight: 900 }}>{filledCells}/{totalCells}</span>
+            </div>
+          </div>
+          <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center text-white/60" aria-label={muted ? 'בטל השתקה' : 'השתק'}>
+            {muted ? '🔇' : '🔊'}
+          </button>
+          <button onClick={() => setShowLeave(true)} className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-error text-sm" aria-label="יציאה">✕</button>
+        </div>
       </div>
       <AnimatePresence>
         {showLeave && <LeaveConfirm onConfirm={() => { setShowLeave(false); goHome() }} onCancel={() => setShowLeave(false)} />}
@@ -903,41 +1094,32 @@ function GridWordBuilder() {
   }
 
   return (
-    <div className="mx-4 p-3 rounded-xl bg-builder border border-gray-800/50 space-y-2">
+    <div className="builder">
       {!selectedCell && (
-        <p className="text-center text-gray-500 text-sm py-2">בחר משבצת ברשת</p>
+        <p className="text-center text-white/50 text-sm py-2">בחר משבצת ברשת</p>
       )}
       {selectedCell && (
-        <div className="flex items-center justify-between gap-3">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={clearWord}
-            className="w-11 h-11 rounded-xl bg-error/20 text-error text-lg font-bold flex items-center justify-center shrink-0">
-            ✕
-          </motion.button>
-          <div className="flex-1 min-h-[44px] flex items-center justify-center rounded-xl bg-gray-800/30 px-3">
-            <span className="text-2xl font-bold tracking-wider">
-              {currentWord || <span className="text-gray-600 text-base">הקש על אותיות</span>}
-            </span>
+        <div className="flex items-center gap-2.5">
+          <button onClick={clearWord} className="builder-btn clear" aria-label="מחק">✕</button>
+          <div className={`builder-display flex-1${currentWord ? '' : ' empty'}`}>
+            {currentWord || 'הקש על אותיות'}
           </div>
-          <motion.button whileTap={{ scale: 0.9 }} onClick={handleSubmit}
-            disabled={!currentWord}
-            className={`w-11 h-11 rounded-xl text-lg font-bold flex items-center justify-center shrink-0
-              ${currentWord ? 'bg-success/20 text-success' : 'bg-gray-800/30 text-gray-600'}`}>
-            ✓
-          </motion.button>
+          <button onClick={handleSubmit} disabled={!currentWord}
+            className={`builder-btn submit${!currentWord ? ' dim' : ''}`} aria-label="שלח">✓</button>
         </div>
       )}
       {!currentWord && (
-        <div className="flex gap-2">
+        <div className="flex gap-1.5 mt-2">
           {placedWords.length > 0 && (
             <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} whileTap={{ scale: 0.95 }}
-              onClick={undoLastWord}
-              className="flex-1 py-1.5 rounded-lg text-xs text-gray-400 bg-gray-800/30 hover:text-white transition-colors">
-              ↩ ביטול ({placedWords[placedWords.length - 1].word})
+              onClick={undoLastWord} className="builder-tool">
+              ↶ ביטול ({placedWords[placedWords.length - 1].word})
             </motion.button>
           )}
           <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} whileTap={{ scale: 0.95 }}
             onClick={shuffleLetters}
-            className={`${placedWords.length > 0 ? '' : 'flex-1'} px-3 py-1.5 rounded-lg text-xs transition-colors ${score >= 50 ? 'text-accent bg-accent/10 hover:bg-accent/20' : 'text-gray-600 bg-gray-800/20'}`}>
+            className={`builder-tool gold ${placedWords.length > 0 ? '' : 'flex-1'}`}
+            style={score < 50 ? { opacity: 0.5 } : {}}>
             🔀 ערבוב (50-)
           </motion.button>
         </div>
@@ -961,14 +1143,12 @@ function GridLetterTiles() {
         {letters.map((letter, i) => {
           const isUsed = usedTileIndices.includes(i)
           return (
-            <motion.button key={`${letter}-${i}`}
-              whileTap={isUsed ? {} : { scale: 0.92 }}
+            <button key={`${letter}-${i}`}
               onClick={() => { if (!isUsed) { addLetterByIndex(i); playTileTap(muted) } }}
               disabled={isUsed}
-              className={`w-[52px] h-[52px] rounded-xl border-2 text-xl font-bold shadow-lg shadow-black/30 transition-colors duration-100
-                ${isUsed ? 'bg-tile/30 border-transparent text-white/25' : 'bg-tile border-transparent text-white active:border-accent active:bg-accent/20'}`}>
+              className={`tile${isUsed ? ' used' : ''}`}>
               {letter}
-            </motion.button>
+            </button>
           )
         })}
       </div>
@@ -1011,11 +1191,15 @@ function WowOverlay() {
   const feedback = useGridStore((s) => s.feedback)
   const muted = useGridStore((s) => s.muted)
   const [visible, setVisible] = useState(false)
+  const [bonusValue, setBonusValue] = useState<number | null>(null)
   const lastWowText = useRef<string | null>(null)
 
   useEffect(() => {
     if (feedback?.text?.includes('וואו') && feedback.text !== lastWowText.current) {
       lastWowText.current = feedback.text
+      // Try to extract the +N number from the feedback text
+      const match = feedback.text.match(/\+(\d+)/)
+      setBonusValue(match ? parseInt(match[1], 10) : null)
       setVisible(true)
       if (!muted) {
         new Audio('/sounds/wow.wav').play().catch(() => {})
@@ -1030,14 +1214,51 @@ function WowOverlay() {
       {visible && (
         <motion.div
           key="wow-overlay"
-          initial={{ scale: 0.2, opacity: 0 }}
-          animate={{ scale: [0.2, 1.25, 0.92, 1.06, 1], opacity: [0, 1, 1, 1, 1] }}
-          exit={{ scale: 1.15, opacity: 0 }}
-          transition={{ duration: 0.55, times: [0, 0.35, 0.55, 0.75, 1], ease: 'easeOut' }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25 }}
           className="fixed inset-0 flex items-center justify-center pointer-events-none"
           style={{ zIndex: 9000 }}
         >
-          <img src="/wow.png" alt="WOW!" style={{ width: 300, maxWidth: '85vw' }} draggable={false} />
+          {/* Burst behind */}
+          <div style={{ position: 'absolute', display: 'grid', placeItems: 'center' }}>
+            <BurstRays size={360} />
+          </div>
+
+          {/* WOW! chrome lockup */}
+          <div className="flex flex-col items-center" style={{ marginTop: -20 }}>
+            <motion.div
+              initial={{ scale: 0.2, opacity: 0 }}
+              animate={{ scale: [0.2, 1.25, 0.92, 1.06, 1], opacity: 1 }}
+              transition={{ duration: 0.55, times: [0, 0.35, 0.55, 0.75, 1], ease: 'easeOut' }}
+              className="chrome-text"
+              style={{
+                fontFamily: 'Sora', fontSize: 110, lineHeight: 0.9, letterSpacing: '-0.04em',
+                fontWeight: 900, direction: 'ltr',
+              }}>
+              WOW!
+            </motion.div>
+            {bonusValue !== null && (
+              <motion.div
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.18, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
+                style={{ marginTop: 12 }}>
+                <div style={{
+                  padding: '8px 22px', borderRadius: 14,
+                  background: 'linear-gradient(180deg,#1a0510,#2e0a1f)',
+                  border: '2px solid rgba(255,255,255,0.22)',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1)',
+                  direction: 'ltr',
+                }}>
+                  <div className="gold-text" style={{ fontSize: 30, lineHeight: 1, letterSpacing: '-0.01em' }}>
+                    +{bonusValue} POINTS!
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
@@ -1065,47 +1286,108 @@ function GridResultScreen() {
   if (status === 'stage_clear') {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6">
-        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-          className="text-6xl mb-3">💥</motion.div>
-        <motion.h1 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}
-          className="text-2xl font-bold text-accent mb-2">!שלב {stage} הושלם</motion.h1>
-        <p className="text-lg text-white mb-1">{score} :ניקוד</p>
-        <p className="text-gray-400 mb-6 text-sm">{placedWords.map((p) => p.word).join(' • ')}</p>
-        {/* Burst particles */}
-        {[...Array(10)].map((_, i) => (
-          <motion.div key={i} initial={{ scale: 0, x: 0, y: 0 }}
-            animate={{ scale: [0, 1, 0], x: Math.cos((i * Math.PI) / 5) * 100, y: Math.sin((i * Math.PI) / 5) * 100 }}
-            transition={{ duration: 0.8, delay: 0.05 * i }}
-            className="absolute w-2 h-2 rounded-full bg-accent" />
-        ))}
-        <motion.button initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.5 }}
-          whileTap={{ scale: 0.95 }} onClick={nextGridStage}
-          className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg shadow-accent/30">
-          !שלב הבא
-        </motion.button>
+        className="fixed inset-0 flex flex-col items-center justify-center z-50 px-6 overflow-hidden">
+        <SceneBackground />
+        <Confetti count={50} seed={stage} />
+        <div className="absolute sunburst-gold pointer-events-none"
+          style={{ top: '12%', left: '50%', transform: 'translateX(-50%)', width: 500, height: 500 }} />
+
+        <div className="relative flex flex-col items-center gap-3 max-w-[320px]">
+          <motion.div initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 250, damping: 12 }}>
+            <Icon.Crown size={88} />
+          </motion.div>
+
+          <motion.div className="stage-banner"
+            initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.15, type: 'spring', stiffness: 300, damping: 18 }}>
+            STAGE COMPLETE
+          </motion.div>
+
+          <div className="gold-text inline-flex items-baseline" style={{ fontSize: 64, lineHeight: 0.9, gap: 12, flexDirection: 'row-reverse' }}>
+            <span style={{ fontFamily: 'Heebo' }}>שלב</span>
+            <span style={{ fontFamily: 'Sora' }}>{stage}</span>
+          </div>
+
+          <div className="flex gap-1 mb-2">
+            {[1, 2, 3].map((i) => (
+              <motion.div key={i}
+                initial={{ scale: 0, rotate: -45 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ delay: 0.5 + i * 0.12, type: 'spring', stiffness: 300, damping: 14 }}
+                style={{ transform: i === 2 ? 'translateY(-6px)' : undefined }}>
+                <Icon.Star size={i === 2 ? 50 : 42} />
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.7 }}
+            className="w-full p-4 rounded-2xl border border-white/10"
+            style={{
+              background: 'linear-gradient(180deg, rgba(15,8,30,0.85), rgba(10,4,20,0.85))',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 24px rgba(0,0,0,0.5)',
+            }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-white/55 font-bold">ניקוד שלב</span>
+              <span className="num font-sora font-black text-2xl" style={{ color: '#ffe27a' }}>{score.toLocaleString()}</span>
+            </div>
+            {placedWords.length > 0 && (
+              <p className="text-xs text-white/50 text-center mt-2">{placedWords.slice(-6).map((p) => p.word).join(' • ')}</p>
+            )}
+          </motion.div>
+
+          <motion.button initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.9 }}
+            onClick={nextGridStage}
+            className="btn-3d gold shine w-full max-w-[280px] mt-2"
+            style={{ fontSize: 19 }}>
+            <span>שלב {stage + 1}</span>
+            <span style={{ fontSize: 22, marginRight: 4 }}>‹</span>
+          </motion.button>
+        </div>
       </motion.div>
     )
   }
 
   if (status === 'lost') {
+    const lbValue = (isShapes || isShapesV2) ? score : stage
+    const isNewBest = lbValue > 0 && lbValue >= lbBest
+
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6 overflow-y-auto py-8">
-        <motion.div initial={{ scale: 1.5 }} animate={{ scale: 1, rotate: [0, -5, 5, -3, 0] }}
-          transition={{ duration: 0.5 }} className="text-5xl mb-4">💔</motion.div>
-        <h1 className="text-2xl font-bold text-gray-300 mb-2">נגמר הזמן</h1>
-        <p className="text-lg text-gray-400 mb-1">{score} :ניקוד</p>
-        <p className="text-gray-500 mb-4">הגעת לשלב {stage}</p>
+        className="fixed inset-0 flex flex-col items-center z-50 px-5 py-6 overflow-y-auto">
+        <SceneBackground />
 
-        <LeaderboardSection mode={lbMode} value={(isShapes || isShapesV2) ? score : stage} personalBest={lbBest}
-          personalLabel={(isShapes || isShapesV2) ? 'נק׳' : 'שלב'} active={true} />
+        <div className="relative flex flex-col items-center gap-3 w-full max-w-[340px]">
+          <motion.div initial={{ scale: 1.5 }} animate={{ scale: 1, rotate: [0, -5, 5, -3, 0] }}
+            transition={{ duration: 0.5 }} className="text-6xl mt-2">💔</motion.div>
+          <h1 className="text-2xl font-black text-white/85">נגמר הזמן</h1>
+          <div className="flex flex-col items-center">
+            <div style={{ fontFamily: 'Sora', fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 800, letterSpacing: '0.16em' }}>FINAL SCORE</div>
+            <div className="gold-text num" style={{ fontSize: 48, lineHeight: 1 }}>{score.toLocaleString()}</div>
+          </div>
+          <p className="text-sm text-white/55">הגעת לשלב {stage}</p>
 
-        <div className="flex flex-col gap-3 w-full max-w-[250px]">
-          <motion.button whileTap={{ scale: 0.95 }} onClick={() => startGrid()}
-            className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg shadow-accent/30">!שחק שוב</motion.button>
-          <motion.button whileTap={{ scale: 0.95 }} onClick={goHome}
-            className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium">תפריט ראשי</motion.button>
+          {isNewBest && lbValue > 0 && (
+            <div className="pb-pill">
+              <Icon.Trophy size={14} />
+              <span>NEW PERSONAL BEST</span>
+            </div>
+          )}
+
+          <div className="w-full mt-2">
+            <LeaderboardSection mode={lbMode} value={lbValue} personalBest={lbBest}
+              personalLabel={(isShapes || isShapesV2) ? 'נק׳' : 'שלב'} active={true} />
+          </div>
+
+          <div className="flex flex-col gap-2.5 w-full max-w-[280px] mt-2">
+            <button onClick={() => startGrid(difficulty)} className="btn-3d shine w-full">
+              <Icon.Lightning size={18} />
+              <span>שחק שוב</span>
+            </button>
+            <button onClick={goHome} className="btn-3d ghost w-full">תפריט ראשי</button>
+          </div>
         </div>
       </motion.div>
     )
@@ -1204,8 +1486,11 @@ function MultiplayerLobby() {
 
   if (status === 'creating' || status === 'joining') {
     return (
-      <div className="fixed inset-0 bg-bg flex flex-col items-center justify-center z-50 px-6">
-        <div className="text-2xl text-accent animate-pulse">...מתחבר</div>
+      <div className="fixed inset-0 flex flex-col items-center justify-center z-50 px-6">
+        <SceneBackground />
+        <div className="relative">
+          <div className="gold-text text-2xl animate-pulse">...מתחבר</div>
+        </div>
       </div>
     )
   }
@@ -1213,57 +1498,62 @@ function MultiplayerLobby() {
   if (status !== 'waiting' && status !== 'lobby') return null
 
   return (
-    <div className="fixed inset-0 bg-bg flex flex-col items-center justify-center z-50 px-6">
-      <h2 className="text-2xl font-bold text-accent mb-1">חדר משחק</h2>
-      <p className="text-gray-400 text-sm mb-3">{MODE_NAMES[gameMode] || gameMode}</p>
+    <div className="fixed inset-0 flex flex-col items-center justify-center z-50 px-6 overflow-y-auto py-8">
+      <SceneBackground />
+      <div className="relative flex flex-col items-center w-full max-w-[320px]">
+        <h2 className="gold-text" style={{ fontSize: 30, lineHeight: 1, marginBottom: 4 }}>חדר משחק</h2>
+        <p className="text-white/55 text-sm mb-4">{MODE_NAMES[gameMode] || gameMode}</p>
 
-      {/* Room code */}
-      <div className="mb-4 text-center">
-        <p className="text-gray-400 text-sm mb-1">:קוד חדר</p>
-        <div className="text-5xl font-bold text-white tracking-[0.3em] font-mono">{roomCode}</div>
-        <p className="text-gray-500 text-xs mt-1">שתפו את הקוד עם חברים</p>
-      </div>
+        <div className="mb-5 text-center">
+          <p className="text-white/55 text-xs mb-1 font-bold tracking-wider">:קוד חדר</p>
+          <div className="num" style={{
+            fontFamily: 'Sora', fontWeight: 900, fontSize: 48,
+            background: 'linear-gradient(180deg, #fff 0%, #ffe27a 60%, #f5b942 100%)',
+            WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
+            letterSpacing: '0.3em', lineHeight: 1,
+            filter: 'drop-shadow(0 1px 0 #c47b14) drop-shadow(0 4px 6px rgba(0,0,0,0.5))',
+          }}>{roomCode}</div>
+          <p className="text-white/40 text-xs mt-1">שתפו את הקוד עם חברים</p>
+        </div>
 
-      {/* My name input */}
-      <div className="w-full max-w-[280px] mb-3">
         <input
-          type="text"
-          value={playerName}
+          type="text" value={playerName}
           onChange={(e) => setPlayerName(e.target.value.slice(0, 12))}
-          placeholder="השם שלך"
-          maxLength={12}
-          className="w-full text-center text-lg font-bold bg-tile border-2 border-gray-700 rounded-xl py-2 px-3 text-white placeholder-gray-600 focus:border-accent outline-none"
+          placeholder="השם שלך" maxLength={12}
+          className="w-full text-center text-lg font-bold rounded-xl py-2 px-3 text-white placeholder-white/30 outline-none mb-3"
+          style={{
+            background: 'rgba(15, 8, 30, 0.7)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)',
+          }}
         />
-      </div>
 
-      {/* Player list */}
-      <div className="w-full max-w-[280px] mb-4">
-        <p className="text-gray-400 text-sm mb-2">{players.length}/{maxPlayers} :שחקנים</p>
-        <div className="space-y-2">
+        <p className="text-white/55 text-xs mb-2 self-stretch text-right font-bold">
+          {players.length}/{maxPlayers} :שחקנים
+        </p>
+        <div className="w-full space-y-1.5 mb-4">
           {players.map((p, i) => {
             const isMe = p.id === playerId
             return (
-              <motion.div
-                key={p.id}
-                initial={{ x: 20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: i * 0.1 }}
-                className={`flex items-center justify-between px-4 py-2 rounded-xl border ${
-                  p.ready ? 'bg-success/10 border-success/40' : 'bg-tile border-gray-700/40'
-                }`}
-              >
+              <motion.div key={p.id}
+                initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: i * 0.08 }}
+                className="flex items-center justify-between px-3.5 py-2 rounded-xl"
+                style={{
+                  background: p.ready ? 'rgba(34,197,94,0.1)' : 'rgba(15,8,30,0.6)',
+                  border: `1px solid ${p.ready ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                }}>
                 <div className="flex items-center gap-2">
-                  <span className={`text-sm ${p.ready ? 'text-success' : 'text-gray-500'}`}>
-                    {p.ready ? '✓' : '○'}
-                  </span>
-                  <span className="text-white">{p.name}</span>
-                  {i === 0 && <span className="text-xs text-accent">👑</span>}
+                  <span className={`text-sm font-black ${p.ready ? 'text-success' : 'text-white/40'}`}>{p.ready ? '✓' : '○'}</span>
+                  <span className="text-white text-sm font-bold">{p.name}</span>
+                  {i === 0 && <Icon.Crown size={14} />}
                 </div>
                 {isMe && (
                   <button onClick={toggleReady}
-                    className={`text-xs px-3 py-1 rounded-full font-medium ${
-                      p.ready ? 'bg-success/20 text-success' : 'bg-gray-700 text-gray-300'
-                    }`}>
+                    className="text-xs px-3 py-1 rounded-full font-black"
+                    style={p.ready
+                      ? { background: 'rgba(74,222,128,0.2)', color: '#86efac', border: '1px solid rgba(74,222,128,0.4)' }
+                      : { background: 'rgba(255,255,255,0.08)', color: 'white', border: '1px solid rgba(255,255,255,0.16)' }}>
                     {p.ready ? '!מוכן' : 'מוכן?'}
                   </button>
                 )}
@@ -1271,36 +1561,25 @@ function MultiplayerLobby() {
             )
           })}
           {players.length < maxPlayers && (
-            <div className="flex items-center justify-center px-4 py-2 rounded-xl border border-dashed border-gray-700/40">
-              <span className="text-gray-600 text-sm animate-pulse">...ממתין לשחקנים</span>
+            <div className="flex items-center justify-center px-3.5 py-2 rounded-xl border border-dashed border-white/10">
+              <span className="text-white/35 text-xs animate-pulse">...ממתין לשחקנים</span>
             </div>
           )}
         </div>
-      </div>
 
-      {/* Buttons */}
-      <div className="flex flex-col gap-3 w-full max-w-[280px]">
-        {isHost && (
-          <motion.button
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            whileTap={allReady ? { scale: 0.95 } : {}}
-            onClick={allReady ? startMatch : undefined}
-            className={`px-8 py-4 rounded-2xl text-xl font-bold shadow-lg ${
-              allReady
-                ? 'bg-success text-white shadow-success/30'
-                : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            {allReady ? '!התחל משחק' : '...ממתין שכולם יהיו מוכנים'}
-          </motion.button>
-        )}
-        {!isHost && !myReady && (
-          <p className="text-center text-gray-500 text-sm">לחץ &quot;?מוכן&quot; כשאתה מוכן</p>
-        )}
-        <button onClick={leaveGame} className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium">
-          יציאה
-        </button>
+        <div className="flex flex-col gap-2.5 w-full">
+          {isHost && (
+            <button onClick={allReady ? startMatch : undefined}
+              disabled={!allReady}
+              className={`btn-3d ${allReady ? 'success shine' : ''} w-full`}>
+              {allReady ? <><Icon.Lightning size={18} /><span>!התחל משחק</span></> : <span>...ממתינים שכולם יהיו מוכנים</span>}
+            </button>
+          )}
+          {!isHost && !myReady && (
+            <p className="text-center text-white/45 text-sm">לחץ &quot;?מוכן&quot; כשאתה מוכן</p>
+          )}
+          <button onClick={leaveGame} className="btn-3d ghost w-full">יציאה</button>
+        </div>
       </div>
     </div>
   )
@@ -1313,9 +1592,8 @@ function MultiplayerCountdown() {
   if (status !== 'countdown' || countdownValue === null) return null
 
   return (
-    <motion.div
-      className="fixed inset-0 bg-bg/95 flex items-center justify-center z-[60]"
-    >
+    <motion.div className="fixed inset-0 flex items-center justify-center z-[60]"
+      style={{ background: 'rgba(10,4,16,0.92)', backdropFilter: 'blur(8px)' }}>
       <AnimatePresence mode="wait">
         <motion.div
           key={countdownValue}
@@ -1323,9 +1601,10 @@ function MultiplayerCountdown() {
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 2, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-          className={`text-8xl font-bold ${countdownValue === 0 ? 'text-accent' : 'text-white'}`}
+          className={countdownValue === 0 ? 'gold-text' : 'chrome-text'}
+          style={{ fontFamily: 'Sora', fontWeight: 900, fontSize: 130, lineHeight: 1, direction: 'ltr' }}
         >
-          {countdownValue === 0 ? '!GO' : countdownValue}
+          {countdownValue === 0 ? 'GO!' : countdownValue}
         </motion.div>
       </AnimatePresence>
     </motion.div>
@@ -1372,32 +1651,43 @@ function MultiplayerTopBar() {
   const showLeaveConfirm = useMultiplayerStore((s) => s.showLeaveConfirm)
   const setShowLeaveConfirm = useMultiplayerStore((s) => s.setShowLeaveConfirm)
   const leaveGame = useMultiplayerStore((s) => s.leaveGame)
-  const gameMode = useMultiplayerStore((s) => s.gameMode)
   const stage = useMultiplayerStore((s) => s.stage)
   const maxLevels = useMultiplayerStore((s) => s.maxLevels)
-  const gridScore = useGridStore((s) => s.score)
 
-  // mpScore is always the source of truth — includes base + current level (synced by bridge)
   const score = mpScore
-
   const filledLen = filledWords.reduce((s, w) => s + w.length, 0)
-  const remaining = targetLength - filledLen
-  const minutes = Math.floor(timeLeft / 60)
-  const seconds = timeLeft % 60
+  const remaining = Math.max(0, targetLength - filledLen)
   const isLow = timeLeft <= 15
   const stageLabel = maxLevels > 0 ? `${stage}/${maxLevels}` : `שלב ${stage}`
 
   return (
-    <div className="flex items-center justify-between px-3 py-2">
-      <span className={`text-lg font-bold tabular-nums ${isLow ? 'text-error animate-pulse' : 'text-white'}`}>
-        {minutes}:{seconds.toString().padStart(2, '0')}
-      </span>
-      <span className="text-sm text-gray-400">{stageLabel}</span>
-      <span className="text-lg font-bold text-accent">{score} נק׳</span>
-      <div className="flex items-center gap-1">
-        <span className="text-sm text-gray-400">נשארו {remaining}</span>
-        <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center text-gray-400">{muted ? '🔇' : '🔊'}</button>
-        <button onClick={() => setShowLeaveConfirm(true)} className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-error text-sm">✕</button>
+    <div className="px-3 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <TimerRing time={timeLeft} totalTime={90} low={isLow} />
+        <div className="flex-1 flex flex-col items-center gap-1">
+          <div className="stage-badge">
+            <Icon.Crown size={14} />
+            <span>{stageLabel}</span>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <motion.span key={score}
+              initial={{ scale: 1.4 }} animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+              className="score-gold num" style={{ fontSize: 26, lineHeight: 1 }}>
+              {score.toLocaleString()}
+            </motion.span>
+            <span className="text-[10px] font-bold text-white/50">נק'</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="hud-pill" style={{ padding: '4px 10px 4px 4px' }}>
+            <div className="ico" style={{ width: 22, height: 22, fontSize: 12 }}>
+              <span className="num" style={{ fontWeight: 900 }}>{remaining}</span>
+            </div>
+          </div>
+          <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center text-white/60">{muted ? '🔇' : '🔊'}</button>
+          <button onClick={() => setShowLeaveConfirm(true)} className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-error text-sm">✕</button>
+        </div>
       </div>
       <AnimatePresence>
         {showLeaveConfirm && <LeaveConfirm onConfirm={() => { setShowLeaveConfirm(false); leaveGame() }} onCancel={() => setShowLeaveConfirm(false)} />}
@@ -1414,20 +1704,28 @@ function MultiplayerTargetRow() {
   filledWords.forEach((word, wordIdx) => {
     for (const char of word) cells.push({ char, wordIdx })
   })
-  const emptyCount = targetLength - cells.length
+  const emptyCount = Math.max(0, targetLength - cells.length)
+  const lastWordIdx = filledWords.length - 1
 
   return (
     <div className="px-3 py-3">
-      <div className="flex flex-row-reverse flex-wrap justify-center gap-[3px]">
-        {cells.map((cell, i) => (
-          <motion.div key={`f-${i}`} initial={{ scale: 0 }} animate={{ scale: 1 }}
-            className={`w-[22px] h-[34px] rounded-md flex items-center justify-center text-sm font-bold
-              ${cell.wordIdx % 2 === 0 ? 'bg-accent/30 border border-accent/50' : 'bg-purple-900/40 border border-purple-700/50'}`}>
-            {cell.char}
-          </motion.div>
-        ))}
+      <div className="row-rtl flex-wrap justify-center" style={{ gap: 4 }}>
+        {cells.map((cell, i) => {
+          const isLastWord = cell.wordIdx === lastWordIdx
+          const wordStartIdx = cells.findIndex((c) => c.wordIdx === cell.wordIdx)
+          const offsetInWord = i - wordStartIdx
+          return (
+            <div key={`f-${i}`}
+              className={`slot filled${cell.wordIdx % 2 === 1 ? ' word-b' : ''}`}
+              style={isLastWord
+                ? { animation: 'drop-bounce 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards', animationDelay: `${offsetInWord * 0.05}s` }
+                : undefined}>
+              {cell.char}
+            </div>
+          )
+        })}
         {Array.from({ length: emptyCount }).map((_, i) => (
-          <div key={`e-${i}`} className="w-[22px] h-[34px] rounded-md border border-gray-700/50 bg-gray-800/20" />
+          <div key={`e-${i}`} className="slot" />
         ))}
       </div>
     </div>
@@ -1455,23 +1753,19 @@ function MultiplayerWordBuilder() {
   }
 
   return (
-    <div className="mx-4 p-3 rounded-xl bg-builder border border-gray-800/50 space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <motion.button whileTap={{ scale: 0.9 }} onClick={clearWord}
-          className="w-11 h-11 rounded-xl bg-error/20 text-error text-lg font-bold flex items-center justify-center shrink-0">✕</motion.button>
-        <div className="flex-1 min-h-[44px] flex items-center justify-center rounded-xl bg-gray-800/30 px-3">
-          <span className="text-2xl font-bold tracking-wider">
-            {currentWord || <span className="text-gray-600 text-base">הקש על אותיות</span>}
-          </span>
+    <div className="builder">
+      <div className="flex items-center gap-2.5">
+        <button onClick={clearWord} className="builder-btn clear" aria-label="מחק">✕</button>
+        <div className={`builder-display flex-1${currentWord ? '' : ' empty'}`}>
+          {currentWord || 'הקש על אותיות'}
         </div>
-        <motion.button whileTap={{ scale: 0.9 }} onClick={handleSubmit} disabled={!currentWord}
-          className={`w-11 h-11 rounded-xl text-lg font-bold flex items-center justify-center shrink-0
-            ${currentWord ? 'bg-success/20 text-success' : 'bg-gray-800/30 text-gray-600'}`}>✓</motion.button>
+        <button onClick={handleSubmit} disabled={!currentWord}
+          className={`builder-btn submit${!currentWord ? ' dim' : ''}`} aria-label="שלח">✓</button>
       </div>
       {filledWords.length > 0 && !currentWord && (
         <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} whileTap={{ scale: 0.95 }} onClick={undoLastWord}
-          className="w-full py-1.5 rounded-lg text-xs text-gray-400 bg-gray-800/30 hover:text-white transition-colors">
-          ↩ הסר מילה אחרונה ({filledWords[filledWords.length - 1]})
+          className="builder-tool w-full mt-2">
+          ↶ הסר מילה אחרונה ({filledWords[filledWords.length - 1]})
         </motion.button>
       )}
     </div>
@@ -1493,14 +1787,12 @@ function MultiplayerLetterTiles() {
         {letters.map((letter, i) => {
           const isUsed = usedTileIndices.includes(i)
           return (
-            <motion.button key={`${letter}-${i}`}
-              whileTap={isUsed ? {} : { scale: 0.92 }}
+            <button key={`${letter}-${i}`}
               onClick={() => { if (!isUsed) { addLetterByIndex(i); playTileTap(muted) } }}
               disabled={isUsed}
-              className={`w-[52px] h-[52px] rounded-xl border-2 text-xl font-bold shadow-lg shadow-black/30 transition-colors duration-100
-                ${isUsed ? 'bg-tile/30 border-transparent text-white/25' : 'bg-tile border-transparent text-white active:border-accent active:bg-accent/20'}`}>
+              className={`tile${isUsed ? ' used' : ''}`}>
               {letter}
-            </motion.button>
+            </button>
           )
         })}
       </div>
@@ -1596,105 +1888,110 @@ function MultiplayerResults() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-      className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6">
+      className="fixed inset-0 flex flex-col items-center justify-center z-50 px-6">
+      <SceneBackground />
+      {phase === 'final' && <Confetti count={50} seed={stage} />}
 
-      {/* Phase: Waiting for other players */}
-      {phase === 'waiting' && !allFinished && (
-        <div className="text-center">
-          <div className="text-3xl mb-2">⏳</div>
-          <p className="text-gray-400 animate-pulse">...ממתין לשחקנים אחרים</p>
-          <p className="text-lg text-white font-bold mt-4">{score} נק׳</p>
-        </div>
-      )}
-
-      {/* Phase: Winner announcement — 2 seconds */}
-      {phase === 'winner' && (
-        <motion.div
-          initial={{ scale: 0.5, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="text-center"
-        >
-          <div className="text-7xl mb-4">👑</div>
-          <h2 className="text-3xl font-bold text-accent mb-2">!{winner?.name} מוביל</h2>
-          <p className="text-xl text-white font-bold">{winner?.score} נק׳</p>
-          <p className="text-gray-400 text-sm mt-2">{maxLevels > 0 ? `שלב ${stage}/${maxLevels} הושלם` : `שלב ${stage} הושלם`}</p>
-        </motion.div>
-      )}
-
-      {/* Phase: Scoreboard with countdown */}
-      {phase === 'scoreboard' && (
-        <div className="text-center w-full">
-          <h2 className="text-xl font-bold text-accent mb-4">טבלת ניקוד — {maxLevels > 0 ? `שלב ${stage}/${maxLevels}` : `שלב ${stage}`}</h2>
-
-          <div className="w-full max-w-[300px] mx-auto space-y-2 mb-6">
-            {allPlayers.map((p, i) => (
-              <motion.div key={p.id}
-                initial={{ x: 20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: i * 0.1 }}
-                className={`flex items-center justify-between px-4 py-3 rounded-xl ${
-                  p.id === playerId ? 'bg-accent/20 border border-accent/50' : 'bg-tile border border-gray-700/40'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{i < 3 ? MEDALS[i] : `${i + 1}.`}</span>
-                  <span className="text-white font-medium">{p.name}</span>
-                  {p.id === playerId && <span className="text-xs text-accent">(אתה)</span>}
-                </div>
-                <span className="text-white font-bold">{p.score}</span>
-              </motion.div>
-            ))}
+      <div className="relative w-full max-w-[320px] flex flex-col items-center">
+        {phase === 'waiting' && !allFinished && (
+          <div className="text-center">
+            <div className="text-4xl mb-2">⏳</div>
+            <p className="text-white/55 animate-pulse text-sm">...ממתין לשחקנים אחרים</p>
+            <div className="gold-text num mt-4" style={{ fontSize: 36 }}>{score.toLocaleString()}</div>
           </div>
+        )}
 
-          {/* Countdown overlay on scoreboard */}
-          {countdown !== null && (
-            <motion.div
-              key={countdown}
-              initial={{ scale: 2, opacity: 0 }}
-              animate={{ scale: 1, opacity: 0.8 }}
-              className="text-6xl font-bold text-accent mt-2"
-            >
-              {countdown}
-            </motion.div>
-          )}
-        </div>
-      )}
+        {phase === 'winner' && winner && (
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 250, damping: 14 }}
+            className="text-center flex flex-col items-center gap-2">
+            <Icon.Crown size={88} />
+            <div className="gold-text" style={{ fontSize: 32, lineHeight: 1.05 }}>!{winner.name} מוביל</div>
+            <div className="num text-white/85 font-sora font-black" style={{ fontSize: 24 }}>{winner.score.toLocaleString()} נק'</div>
+            <p className="text-white/55 text-xs mt-1">{maxLevels > 0 ? `שלב ${stage}/${maxLevels} הושלם` : `שלב ${stage} הושלם`}</p>
+          </motion.div>
+        )}
 
-      {/* Final scoreboard — game over, no more levels */}
-      {phase === 'final' && (
-        <div className="text-center w-full">
-          <div className="text-5xl mb-3">🏆</div>
-          <h2 className="text-2xl font-bold text-accent mb-1">!המשחק נגמר</h2>
-          <p className="text-gray-400 text-sm mb-4">{maxLevels} שלבים הושלמו</p>
+        {phase === 'scoreboard' && (
+          <div className="text-center w-full">
+            <div className="stage-badge mb-3">
+              <Icon.Crown size={14} />
+              <span>{maxLevels > 0 ? `שלב ${stage}/${maxLevels}` : `שלב ${stage}`}</span>
+            </div>
+            <h2 className="gold-text mb-4" style={{ fontSize: 24 }}>טבלת ניקוד</h2>
 
-          <div className="w-full max-w-[300px] mx-auto space-y-2 mb-6">
-            {allPlayers.map((p, i) => (
-              <motion.div key={p.id}
-                initial={{ x: 20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: i * 0.15 }}
-                className={`flex items-center justify-between px-4 py-3 rounded-xl ${
-                  i === 0 ? 'bg-yellow-500/20 border border-yellow-500/50' :
-                  p.id === playerId ? 'bg-accent/20 border border-accent/50' : 'bg-tile border border-gray-700/40'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{i < 3 ? MEDALS[i] : `${i + 1}.`}</span>
-                  <span className="text-white font-medium">{p.name}</span>
-                  {p.id === playerId && <span className="text-xs text-accent">(אתה)</span>}
-                </div>
-                <span className="text-white font-bold">{p.score}</span>
+            <div className="w-full space-y-2 mb-4">
+              {allPlayers.map((p, i) => (
+                <motion.div key={p.id}
+                  initial={{ x: 20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: i * 0.08 }}
+                  className="flex items-center justify-between px-4 py-2.5 rounded-xl"
+                  style={{
+                    background: p.id === playerId ? 'rgba(251,113,133,0.15)' : 'rgba(15,8,30,0.7)',
+                    border: `1px solid ${p.id === playerId ? 'rgba(251,113,133,0.45)' : 'rgba(255,255,255,0.08)'}`,
+                  }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg w-6">{i < 3 ? MEDALS[i] : `${i + 1}.`}</span>
+                    <span className="text-white font-bold text-sm">{p.name}</span>
+                    {p.id === playerId && <span className="text-[10px] text-accent font-black">(אתה)</span>}
+                  </div>
+                  <span className="num font-sora font-black text-white">{p.score.toLocaleString()}</span>
+                </motion.div>
+              ))}
+            </div>
+
+            {countdown !== null && (
+              <motion.div key={countdown}
+                initial={{ scale: 2, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="gold-text num"
+                style={{ fontSize: 80, lineHeight: 1, fontFamily: 'Sora', fontWeight: 900 }}>
+                {countdown}
               </motion.div>
-            ))}
+            )}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Leave button always visible */}
-      <button onClick={leaveGame}
-        className="mt-4 px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium">
-        יציאה
-      </button>
+        {phase === 'final' && (
+          <div className="text-center w-full">
+            <div className="flex flex-col items-center mb-3">
+              <Icon.Trophy size={56} />
+            </div>
+            <div className="gold-text mb-1" style={{ fontSize: 28 }}>!המשחק נגמר</div>
+            <p className="text-white/55 text-sm mb-4">{maxLevels} שלבים הושלמו</p>
+
+            <div className="w-full space-y-2 mb-4">
+              {allPlayers.map((p, i) => (
+                <motion.div key={p.id}
+                  initial={{ x: 20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: i * 0.12 }}
+                  className="flex items-center justify-between px-4 py-3 rounded-xl"
+                  style={{
+                    background: i === 0
+                      ? 'linear-gradient(180deg, rgba(245,185,66,0.2), rgba(196,123,20,0.12))'
+                      : p.id === playerId ? 'rgba(251,113,133,0.15)' : 'rgba(15,8,30,0.7)',
+                    border: i === 0
+                      ? '1px solid rgba(245,185,66,0.5)'
+                      : `1px solid ${p.id === playerId ? 'rgba(251,113,133,0.45)' : 'rgba(255,255,255,0.08)'}`,
+                  }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg w-6">{i < 3 ? MEDALS[i] : `${i + 1}.`}</span>
+                    <span className="text-white font-bold text-sm">{p.name}</span>
+                    {p.id === playerId && <span className="text-[10px] text-accent font-black">(אתה)</span>}
+                  </div>
+                  <span className="num font-sora font-black text-white">{p.score.toLocaleString()}</span>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button onClick={leaveGame} className="btn-3d ghost mt-3">יציאה</button>
+      </div>
     </motion.div>
   )
 }
@@ -2002,36 +2299,43 @@ function MultiplayerGameOver() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-      className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6">
-      <div className="text-5xl mb-3">🏆</div>
-      <h2 className="text-2xl font-bold text-accent mb-1">!המשחק נגמר</h2>
-      <p className="text-gray-400 text-sm mb-4">{maxLevels > 0 ? `${maxLevels} שלבים הושלמו` : `${stage} שלבים`}</p>
+      className="fixed inset-0 flex flex-col items-center justify-center z-50 px-6">
+      <SceneBackground />
+      <Confetti count={50} seed={stage} />
+      <div className="relative w-full max-w-[320px] flex flex-col items-center">
+        <Icon.Trophy size={64} />
+        <div className="gold-text mt-2 mb-1" style={{ fontSize: 28 }}>!המשחק נגמר</div>
+        <p className="text-white/55 text-sm mb-4">{maxLevels > 0 ? `${maxLevels} שלבים הושלמו` : `${stage} שלבים`}</p>
 
-      <div className="w-full max-w-[300px] space-y-2 mb-6">
-        {allPlayers.map((p, i) => (
-          <motion.div key={p.id}
-            initial={{ x: 20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: i * 0.15 }}
-            className={`flex items-center justify-between px-4 py-3 rounded-xl ${
-              i === 0 ? 'bg-yellow-500/20 border border-yellow-500/50' :
-              p.id === playerId ? 'bg-accent/20 border border-accent/50' : 'bg-tile border border-gray-700/40'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-lg">{i < 3 ? MEDALS[i] : `${i + 1}.`}</span>
-              <span className="text-white font-medium">{p.name}</span>
-              {p.id === playerId && <span className="text-xs text-accent">(אתה)</span>}
-            </div>
-            <span className="text-white font-bold">{p.score}</span>
-          </motion.div>
-        ))}
+        <div className="w-full space-y-2 mb-5">
+          {allPlayers.map((p, i) => (
+            <motion.div key={p.id}
+              initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: i * 0.12 }}
+              className="flex items-center justify-between px-4 py-3 rounded-xl"
+              style={{
+                background: i === 0
+                  ? 'linear-gradient(180deg, rgba(245,185,66,0.22), rgba(196,123,20,0.12))'
+                  : p.id === playerId ? 'rgba(251,113,133,0.15)' : 'rgba(15,8,30,0.7)',
+                border: i === 0
+                  ? '1px solid rgba(245,185,66,0.5)'
+                  : `1px solid ${p.id === playerId ? 'rgba(251,113,133,0.45)' : 'rgba(255,255,255,0.08)'}`,
+              }}>
+              <div className="flex items-center gap-2">
+                <span className="text-lg w-6">{i < 3 ? MEDALS[i] : `${i + 1}.`}</span>
+                <span className="text-white font-bold text-sm">{p.name}</span>
+                {p.id === playerId && <span className="text-[10px] text-accent font-black">(אתה)</span>}
+              </div>
+              <span className="num font-sora font-black text-white">{p.score.toLocaleString()}</span>
+            </motion.div>
+          ))}
+        </div>
+
+        <button onClick={leaveGame} className="btn-3d shine">
+          <Icon.Lightning size={18} />
+          <span>תפריט ראשי</span>
+        </button>
       </div>
-
-      <button onClick={leaveGame}
-        className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg shadow-accent/30">
-        תפריט ראשי
-      </button>
     </motion.div>
   )
 }
@@ -2051,52 +2355,76 @@ function ScoreRushTopBar() {
   const shuffleLetters = useGameStore((s) => s.shuffleLetters)
   const [showLeave, setShowLeave] = useState(false)
 
-  const minutes = Math.floor(timeLeft / 60)
-  const seconds = timeLeft % 60
   const isLow = timeLeft <= 10
 
   return (
-    <div className="px-3 py-2 space-y-1">
-      {/* Row 1: timer + score */}
-      <div className="flex items-center justify-between">
-        <span className={`text-2xl font-bold tabular-nums transition-all duration-300 ${
-          timerFlash ? 'text-success' : isLow ? 'timer-danger' : 'text-white'
-        }`}>
-          {minutes}:{seconds.toString().padStart(2, '0')}
-        </span>
-        <div className="text-2xl font-bold text-accent flex items-baseline gap-1">
-          <motion.span key={score} initial={{ scale: 1.4 }} animate={{ scale: 1 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-            className="inline-block tabular-nums"
-          >{score}</motion.span>
-          <span>נק׳</span>
+    <div className="px-3 py-2 space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="relative">
+          <TimerRing time={timeLeft} totalTime={90} low={isLow} />
+          <AnimatePresence>
+            {timerFlash && (
+              <motion.span
+                initial={{ opacity: 1, y: 0 }}
+                animate={{ opacity: 0, y: -28 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.7 }}
+                className="absolute -top-2 right-0 text-xs font-black text-success">
+                +
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
+        <div className="flex-1 flex flex-col items-center gap-1">
+          <div className="stage-badge">
+            <Icon.Lightning size={12} />
+            <span>ריצת ניקוד</span>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <motion.span key={score}
+              initial={{ scale: 1.4 }} animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+              className="score-gold num" style={{ fontSize: 28, lineHeight: 1 }}>
+              {score.toLocaleString()}
+            </motion.span>
+            <span className="text-[10px] font-bold text-white/50">נק'</span>
+          </div>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center text-gray-400">
-            {muted ? '🔇' : '🔊'}
-          </button>
-          <button onClick={() => setShowLeave(true)} className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-error text-sm">✕</button>
+          <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center text-white/60">{muted ? '🔇' : '🔊'}</button>
+          <button onClick={() => setShowLeave(true)} className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-error text-sm">✕</button>
         </div>
       </div>
 
       <AnimatePresence>
         {showLeave && <LeaveConfirm onConfirm={() => { setShowLeave(false); goHome() }} onCancel={() => setShowLeave(false)} />}
       </AnimatePresence>
-      {/* Row 2: words until shuffle + shuffle tokens */}
+
+      {/* Row 2: words counter + shuffle tokens / buy */}
       <div className="flex items-center justify-between">
-        <span className="text-xs text-gray-400">
-          מילים: {srTotalWords} | לערבוב: {srWordsUntilShuffle}
+        <span className="text-xs text-white/55 font-semibold">
+          מילים <span className="num text-white/85 font-black">{srTotalWords}</span> · לערבוב <span className="num text-white/85 font-black">{srWordsUntilShuffle}</span>
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {srShuffleTokens > 0 && (
             <button onClick={shuffleLetters}
-              className="flex items-center gap-1 text-xs bg-accent/20 text-accent px-2 py-1 rounded-lg font-bold">
+              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-black"
+              style={{
+                background: 'linear-gradient(180deg, rgba(251,113,133,0.2), rgba(190,18,60,0.18))',
+                color: '#fda4af',
+                border: '1px solid rgba(251,113,133,0.4)',
+              }}>
               🔀 ×{srShuffleTokens}
             </button>
           )}
           <button onClick={shuffleLetters}
-            className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded-lg">
-            🔀 קנה (50-)
+            className="text-xs px-2.5 py-1 rounded-full font-bold"
+            style={{
+              background: 'rgba(255,255,255,0.05)',
+              color: 'rgba(255,255,255,0.55)',
+              border: '1px solid rgba(255,255,255,0.1)',
+            }}>
+            🔀 קנה 50-
           </button>
         </div>
       </div>
@@ -2114,9 +2442,10 @@ function ScoreRushScorePopup() {
           key={srLastWordScore + '-' + Date.now()}
           initial={{ opacity: 0, scale: 0.5, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.8, y: -30 }}
-          transition={{ duration: 0.4 }}
-          className="text-6xl font-black text-accent text-center pointer-events-none"
+          exit={{ opacity: 0, scale: 0.85, y: -40 }}
+          transition={{ duration: 0.45, ease: [0.34, 1.56, 0.64, 1] }}
+          className="gold-text text-center pointer-events-none num"
+          style={{ fontSize: 76, lineHeight: 1, fontFamily: 'Sora', fontWeight: 900, direction: 'ltr' }}
         >
           +{srLastWordScore}
         </motion.div>
@@ -2132,29 +2461,42 @@ function ScoreRushResult() {
   const bestScoreRush = useGameStore((s) => s.bestScoreRush)
   const startGame = useGameStore((s) => s.startGame)
   const goHome = useGameStore((s) => s.goHome)
+  const isNewBest = score > 0 && score >= bestScoreRush
 
   if (status !== 'lost') return null
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-      className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6 overflow-y-auto py-8">
-      <div className="text-5xl mb-4">⏱️</div>
-      <h1 className="text-2xl font-bold text-gray-300 mb-1">!נגמר הזמן</h1>
-      <p className="text-3xl font-bold text-accent mb-1">{score} נק׳</p>
-      <p className="text-gray-400 mb-4">{srTotalWords} מילים</p>
+      className="fixed inset-0 flex flex-col items-center z-50 px-5 py-6 overflow-y-auto">
+      <SceneBackground />
+      <div className="relative flex flex-col items-center gap-3 w-full max-w-[340px]">
+        <div className="text-6xl mt-2">⏱️</div>
+        <h1 className="text-2xl font-black text-white/85">!נגמר הזמן</h1>
+        <div className="flex flex-col items-center">
+          <div style={{ fontFamily: 'Sora', fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 800, letterSpacing: '0.16em' }}>FINAL SCORE</div>
+          <div className="gold-text num" style={{ fontSize: 56, lineHeight: 1 }}>{score.toLocaleString()}</div>
+        </div>
+        <p className="text-sm text-white/55"><span className="num font-black text-white/80">{srTotalWords}</span> מילים</p>
 
-      <LeaderboardSection mode="score_rush" value={score} personalBest={bestScoreRush}
-        personalLabel="נק׳" active={status === 'lost'} />
+        {isNewBest && (
+          <div className="pb-pill">
+            <Icon.Trophy size={14} />
+            <span>NEW PERSONAL BEST</span>
+          </div>
+        )}
 
-      <div className="flex flex-col gap-3 w-full max-w-[250px]">
-        <motion.button whileTap={{ scale: 0.95 }} onClick={() => startGame('score_rush')}
-          className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg shadow-accent/30">
-          !שחק שוב
-        </motion.button>
-        <motion.button whileTap={{ scale: 0.95 }} onClick={goHome}
-          className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base font-medium">
-          תפריט ראשי
-        </motion.button>
+        <div className="w-full mt-2">
+          <LeaderboardSection mode="score_rush" value={score} personalBest={bestScoreRush}
+            personalLabel="נק׳" active={status === 'lost'} />
+        </div>
+
+        <div className="flex flex-col gap-2.5 w-full max-w-[280px] mt-2">
+          <button onClick={() => startGame('score_rush')} className="btn-3d shine w-full">
+            <Icon.Lightning size={18} />
+            <span>שחק שוב</span>
+          </button>
+          <button onClick={goHome} className="btn-3d ghost w-full">תפריט ראשי</button>
+        </div>
       </div>
     </motion.div>
   )
@@ -2199,70 +2541,80 @@ function DesignerHub() {
   const [showImport, setShowImport] = useState(false)
 
   return (
-    <div className="fixed inset-0 bg-bg flex flex-col items-center z-50 px-4 py-8 overflow-y-auto">
-      <button onClick={goHome} className="absolute top-4 left-4 text-gray-400 text-2xl">✕</button>
+    <div className="fixed inset-0 flex flex-col items-center z-50 px-4 py-8 overflow-y-auto">
+      <SceneBackground />
+      <button onClick={goHome} className="absolute top-4 left-4 text-white/50 text-2xl z-10" aria-label="סגור">✕</button>
 
-      <h1 className="text-2xl font-bold text-accent mb-6">🎨 עיצוב שלבים</h1>
+      <div className="relative w-full max-w-[320px] flex flex-col items-center">
+        <h1 className="gold-text mb-5" style={{ fontSize: 32 }}>🎨 עיצוב שלבים</h1>
 
-      <div className="flex gap-3 mb-6 w-full max-w-[320px]">
-        <motion.button whileTap={{ scale: 0.95 }} onClick={createNewPack}
-          className="flex-1 py-3 rounded-xl bg-accent text-white font-bold text-sm">
-          + חבילה חדשה
-        </motion.button>
-        <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowImport(!showImport)}
-          className="flex-1 py-3 rounded-xl bg-tile border border-gray-700 text-white font-bold text-sm">
-          📥 הכנס קוד
-        </motion.button>
-      </div>
-
-      {showImport && (
-        <div className="w-full max-w-[320px] mb-4 p-4 rounded-xl bg-builder border border-gray-800">
-          <input type="text" value={importCode} onChange={(e) => setImportCode(e.target.value)}
-            placeholder="הכנס קוד חבילה" maxLength={8}
-            className="w-full text-center text-lg font-mono bg-tile border border-gray-700 rounded-lg py-2 text-white placeholder-gray-600 focus:border-accent outline-none mb-3" />
-          {importError && <p className="text-error text-sm text-center mb-2">{importError}</p>}
-          <button onClick={importPack}
-            className={`w-full py-2 rounded-lg font-bold ${importCode.length > 0 ? 'bg-accent text-white' : 'bg-gray-700 text-gray-500'}`}>
-            ייבא
+        <div className="flex gap-2.5 mb-5 w-full">
+          <button onClick={createNewPack} className="btn-3d flex-1" style={{ fontSize: 14, padding: '12px 12px' }}>
+            + חבילה חדשה
+          </button>
+          <button onClick={() => setShowImport(!showImport)} className="btn-3d ghost flex-1" style={{ fontSize: 14 }}>
+            📥 הכנס קוד
           </button>
         </div>
-      )}
 
-      {shareCode && (
-        <div className="w-full max-w-[320px] mb-4 p-4 rounded-xl bg-success/10 border border-success/30 text-center">
-          <p className="text-success text-sm mb-1">!קוד שיתוף</p>
-          <p className="text-2xl font-bold font-mono text-white tracking-widest">{shareCode}</p>
-        </div>
-      )}
+        {showImport && (
+          <div className="w-full mb-4 p-4 rounded-2xl border border-white/10"
+            style={{ background: 'linear-gradient(180deg, rgba(15,8,30,0.85), rgba(10,4,20,0.85))' }}>
+            <input type="text" value={importCode} onChange={(e) => setImportCode(e.target.value)}
+              placeholder="הכנס קוד חבילה" maxLength={8}
+              className="w-full text-center text-lg font-mono rounded-lg py-2 text-white placeholder-white/30 outline-none mb-3"
+              style={{ background: 'rgba(15,8,30,0.85)', border: '1px solid rgba(255,255,255,0.12)' }} />
+            {importError && <p className="text-error text-sm text-center mb-2">{importError}</p>}
+            <button onClick={importPack}
+              className={`btn-3d ${importCode.length > 0 ? 'success' : ''} w-full`}
+              style={{ fontSize: 14, padding: '10px 0' }}
+              disabled={importCode.length === 0}>
+              ייבא
+            </button>
+          </div>
+        )}
 
-      {packs.length === 0 ? (
-        <p className="text-gray-500 text-sm mt-8">אין חבילות עדיין — צור חבילה חדשה</p>
-      ) : (
-        <div className="w-full max-w-[320px] space-y-3">
-          {packs.map((pack) => (
-            <div key={pack.id} className="p-4 rounded-xl bg-tile border border-gray-700/50">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-bold text-white">{pack.name || 'ללא שם'}</h3>
-                <span className="text-xs text-gray-500">{pack.levels.length} שלבים</span>
+        {shareCode && (
+          <div className="w-full mb-4 p-4 rounded-2xl text-center"
+            style={{
+              background: 'linear-gradient(180deg, rgba(74,222,128,0.16), rgba(22,163,74,0.08))',
+              border: '1px solid rgba(74,222,128,0.4)',
+            }}>
+            <p className="text-success text-xs font-black tracking-wider mb-1">!קוד שיתוף</p>
+            <p className="text-2xl font-mono font-black text-white tracking-widest">{shareCode}</p>
+          </div>
+        )}
+
+        {packs.length === 0 ? (
+          <p className="text-white/40 text-sm mt-8 text-center">אין חבילות עדיין — צור חבילה חדשה</p>
+        ) : (
+          <div className="w-full space-y-2.5">
+            {packs.map((pack) => (
+              <div key={pack.id} className="p-4 rounded-2xl border border-white/10"
+                style={{ background: 'linear-gradient(180deg, rgba(15,8,30,0.85), rgba(10,4,20,0.85))' }}>
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="font-black text-white text-sm">{pack.name || 'ללא שם'}</h3>
+                  <span className="text-xs text-white/45">{pack.levels.length} שלבים</span>
+                </div>
+                {pack.author && <p className="text-xs text-white/55 mb-3">מאת: {pack.author}</p>}
+                <div className="flex gap-1.5">
+                  <button onClick={() => startPlayPack(pack.id)}
+                    disabled={pack.levels.length === 0}
+                    className="btn-3d success flex-1" style={{ fontSize: 13, padding: '8px 0' }}>
+                    ▶ שחק
+                  </button>
+                  <button onClick={() => editPack(pack.id)}
+                    className="btn-icon" style={{ width: 36, height: 36 }}>✏️</button>
+                  <button onClick={() => sharePack(pack.id)}
+                    className="btn-icon" style={{ width: 36, height: 36 }}>📤</button>
+                  <button onClick={() => { if (confirm('למחוק חבילה?')) deletePack(pack.id) }}
+                    className="btn-icon" style={{ width: 36, height: 36, color: '#fca5a5' }}>🗑</button>
+                </div>
               </div>
-              {pack.author && <p className="text-xs text-gray-400 mb-3">מאת: {pack.author}</p>}
-              <div className="flex gap-2">
-                <button onClick={() => startPlayPack(pack.id)}
-                  disabled={pack.levels.length === 0}
-                  className="flex-1 py-2 rounded-lg bg-success/20 text-success font-bold text-sm disabled:opacity-30">
-                  ▶ שחק
-                </button>
-                <button onClick={() => editPack(pack.id)}
-                  className="py-2 px-3 rounded-lg bg-accent/20 text-accent text-sm">✏️</button>
-                <button onClick={() => sharePack(pack.id)}
-                  className="py-2 px-3 rounded-lg bg-blue-500/20 text-blue-400 text-sm">📤</button>
-                <button onClick={() => { if (confirm('למחוק חבילה?')) deletePack(pack.id) }}
-                  className="py-2 px-3 rounded-lg bg-error/20 text-error text-sm">🗑</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -2298,35 +2650,42 @@ function DesignerEditor() {
   const maxCellSize = Math.min(Math.floor(280 / editorGridSize.cols), Math.floor(200 / editorGridSize.rows), 40)
 
   return (
-    <div className="fixed inset-0 bg-bg flex flex-col z-50 overflow-y-auto">
-      <div className="px-4 py-3 flex items-center justify-between border-b border-gray-800">
-        <button onClick={() => { savePack(); openHub() }} className="text-accent font-bold text-sm">← שמור וחזור</button>
-        <h2 className="font-bold text-white">עורך חבילה</h2>
-        <div className="w-16" />
+    <div className="fixed inset-0 flex flex-col z-50 overflow-y-auto">
+      <SceneBackground />
+      <div className="relative px-4 py-3 flex items-center justify-between border-b border-white/8" style={{ background: 'rgba(10,4,20,0.7)', backdropFilter: 'blur(8px)' }}>
+        <button onClick={() => { savePack(); openHub() }} className="font-black text-sm" style={{ color: '#ffe27a' }}>← שמור וחזור</button>
+        <h2 className="font-black text-white">עורך חבילה</h2>
+        <div className="w-20" />
       </div>
 
-      <div className="px-4 py-4 space-y-4 max-w-md mx-auto w-full">
-        {/* Pack name & author */}
+      <div className="relative px-4 py-4 space-y-4 max-w-md mx-auto w-full">
         <div className="space-y-2">
           <input type="text" value={editingPack.name} onChange={(e) => updatePackName(e.target.value)}
             placeholder="שם החבילה" maxLength={30}
-            className="w-full bg-tile border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:border-accent outline-none text-sm" />
+            className="w-full rounded-xl px-3 py-2 text-white placeholder-white/30 outline-none text-sm"
+            style={{ background: 'rgba(15,8,30,0.7)', border: '1px solid rgba(255,255,255,0.12)' }} />
           <input type="text" value={editingPack.author} onChange={(e) => updatePackAuthor(e.target.value)}
             placeholder="שם היוצר" maxLength={20}
-            className="w-full bg-tile border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 focus:border-accent outline-none text-sm" />
+            className="w-full rounded-xl px-3 py-2 text-white placeholder-white/30 outline-none text-sm"
+            style={{ background: 'rgba(15,8,30,0.7)', border: '1px solid rgba(255,255,255,0.12)' }} />
         </div>
 
-        {/* Level list */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-gray-300">שלבים ({editingPack.levels.length})</h3>
-            <button onClick={addLevel} className="text-xs bg-accent/20 text-accent px-3 py-1 rounded-lg font-bold">+ הוסף שלב</button>
+            <h3 className="text-sm font-black text-white/85">שלבים ({editingPack.levels.length})</h3>
+            <button onClick={addLevel} className="text-xs px-3 py-1 rounded-full font-black"
+              style={{ background: 'rgba(251,113,133,0.18)', color: '#fda4af', border: '1px solid rgba(251,113,133,0.4)' }}>
+              + הוסף שלב
+            </button>
           </div>
           <div className="flex flex-wrap gap-2">
             {editingPack.levels.map((_, i) => (
               <div key={i} className="flex items-center gap-1">
                 <button onClick={() => selectLevel(i)}
-                  className={`w-10 h-10 rounded-lg font-bold text-sm ${editingLevelIdx === i ? 'bg-accent text-white' : 'bg-tile text-gray-400 border border-gray-700'}`}>
+                  className="w-10 h-10 rounded-xl font-black text-sm"
+                  style={editingLevelIdx === i
+                    ? { background: 'linear-gradient(180deg,#fb7185,#be123c)', color: '#fff', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 3px 0 #5b0f1f' }
+                    : { background: 'rgba(15,8,30,0.7)', color: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.1)' }}>
                   {i + 1}
                 </button>
                 <button onClick={() => removeLevel(i)} className="text-error text-xs">✕</button>
@@ -2335,56 +2694,54 @@ function DesignerEditor() {
           </div>
         </div>
 
-        {/* Level editor */}
         {editingLevelIdx >= 0 && (
-          <div className="p-4 rounded-xl bg-builder border border-gray-800 space-y-4">
-            <h4 className="font-bold text-white text-sm">שלב {editingLevelIdx + 1}</h4>
+          <div className="p-4 rounded-2xl border border-white/10 space-y-4"
+            style={{ background: 'linear-gradient(180deg, rgba(15,8,30,0.85), rgba(10,4,20,0.85))' }}>
+            <h4 className="font-black text-white text-sm">שלב {editingLevelIdx + 1}</h4>
 
-            {/* Grid size */}
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">גודל רשת</label>
+              <label className="text-xs text-white/55 mb-1 block font-bold">גודל רשת</label>
               <select
                 value={`${editorGridSize.rows}x${editorGridSize.cols}`}
-                onChange={(e) => {
-                  const [r, c] = e.target.value.split('x').map(Number)
-                  setEditorGridSize(r, c)
-                }}
-                className="bg-tile border border-gray-700 text-white rounded-lg px-3 py-2 text-sm w-full outline-none focus:border-accent"
-              >
+                onChange={(e) => { const [r, c] = e.target.value.split('x').map(Number); setEditorGridSize(r, c) }}
+                className="rounded-lg px-3 py-2 text-sm w-full outline-none text-white"
+                style={{ background: 'rgba(15,8,30,0.85)', border: '1px solid rgba(255,255,255,0.12)' }}>
                 {gridSizes.map(({ r, c }) => (
-                  <option key={`${r}x${c}`} value={`${r}x${c}`}>{r}×{c} ({r * c} משבצות)</option>
+                  <option key={`${r}x${c}`} value={`${r}x${c}`} style={{ background: '#1a0510' }}>{r}×{c} ({r * c} משבצות)</option>
                 ))}
               </select>
             </div>
 
-            {/* Grid canvas — tap to toggle cells */}
             <div>
-              <label className="text-xs text-gray-400 mb-2 block">הקש על משבצות לציור הצורה ({activeCells} פעילות)</label>
+              <label className="text-xs text-white/55 mb-2 block font-bold">הקש על משבצות לציור הצורה ({activeCells} פעילות)</label>
               <div className="flex flex-col items-center gap-1">
                 {editorShape.map((row, r) => (
                   <div key={r} className="flex gap-1">
                     {row.map((active, c) => (
                       <button key={`${r}-${c}`} onClick={() => { toggleCell(r, c); saveLevelTopack() }}
-                        className={`rounded transition-colors ${active ? 'bg-white' : 'bg-gray-800 border border-gray-700'}`}
-                        style={{ width: maxCellSize, height: maxCellSize }} />
+                        className="rounded transition-colors"
+                        style={{
+                          width: maxCellSize, height: maxCellSize,
+                          background: active ? '#fff' : 'rgba(15,8,30,0.85)',
+                          border: active ? '1px solid #fff' : '1px solid rgba(255,255,255,0.1)',
+                        }} />
                     ))}
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Timer */}
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">טיימר: {editorTimer} שניות</label>
+              <label className="text-xs text-white/55 mb-1 block font-bold">טיימר: <span className="num text-white/85 font-black">{editorTimer}</span> שניות</label>
               <input type="range" min={30} max={300} step={10} value={editorTimer}
                 onChange={(e) => { setEditorTimer(Number(e.target.value)); saveLevelTopack() }}
                 className="w-full accent-accent" />
-              <div className="flex justify-between text-xs text-gray-600">
+              <div className="flex justify-between text-xs text-white/40">
                 <span>30</span><span>120</span><span>300</span>
               </div>
             </div>
 
-            <button onClick={saveLevelTopack} className="w-full py-2 rounded-lg bg-success/20 text-success font-bold text-sm">
+            <button onClick={saveLevelTopack} className="btn-3d success w-full" style={{ fontSize: 14, padding: '10px 0' }}>
               ✓ שמור שלב
             </button>
           </div>
@@ -2440,18 +2797,27 @@ function CustomPackGame() {
   if (allDone) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6">
-        <div className="text-6xl mb-4">🏆</div>
-        <h1 className="text-3xl font-bold text-accent mb-2">!סיימת את החבילה</h1>
-        <p className="text-xl text-white mb-1">{playTotalScore} :ניקוד כולל</p>
-        <p className="text-gray-400 mb-6">{playingPack.levels.length} שלבים הושלמו</p>
-        <div className="flex flex-col gap-3 w-full max-w-[250px]">
-          <button onClick={openHub} className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg">
-            חזרה לעורך
-          </button>
-          <button onClick={() => { gridGoHome(); goHome() }} className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base">
-            תפריט ראשי
-          </button>
+        className="fixed inset-0 flex flex-col items-center justify-center z-50 px-6">
+        <SceneBackground />
+        <Confetti count={50} seed={playingLevelIdx} />
+        <div className="absolute sunburst-gold pointer-events-none"
+          style={{ top: '15%', left: '50%', transform: 'translateX(-50%)', width: 500, height: 500 }} />
+        <div className="relative flex flex-col items-center gap-3 max-w-[320px]">
+          <Icon.Trophy size={88} />
+          <div className="gold-text" style={{ fontSize: 32, lineHeight: 1.05 }}>!סיימת את החבילה</div>
+          <div className="flex flex-col items-center mt-1">
+            <div style={{ fontFamily: 'Sora', fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 800, letterSpacing: '0.16em' }}>FINAL SCORE</div>
+            <div className="gold-text num" style={{ fontSize: 56, lineHeight: 1 }}>{playTotalScore.toLocaleString()}</div>
+          </div>
+          <p className="text-white/55 text-sm">{playingPack.levels.length} שלבים הושלמו</p>
+          <div className="flex flex-col gap-2.5 w-full max-w-[280px] mt-3">
+            <button onClick={openHub} className="btn-3d gold shine w-full">
+              חזרה לעורך
+            </button>
+            <button onClick={() => { gridGoHome(); goHome() }} className="btn-3d ghost w-full">
+              תפריט ראשי
+            </button>
+          </div>
         </div>
       </motion.div>
     )
@@ -2461,18 +2827,25 @@ function CustomPackGame() {
   if (gridStatus === 'lost') {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        className="fixed inset-0 bg-bg/95 flex flex-col items-center justify-center z-50 px-6">
-        <div className="text-5xl mb-4">😔</div>
-        <h1 className="text-2xl font-bold text-gray-300 mb-2">שלב {playingLevelIdx + 1} נכשל</h1>
-        <p className="text-lg text-gray-400 mb-1">{playTotalScore} :ניקוד כולל</p>
-        <p className="text-gray-500 mb-6">הגעת לשלב {playingLevelIdx + 1} מתוך {playingPack.levels.length}</p>
-        <div className="flex flex-col gap-3 w-full max-w-[250px]">
-          <button onClick={openHub} className="px-8 py-4 rounded-2xl bg-accent text-white text-xl font-bold shadow-lg">
-            חזרה לעורך
-          </button>
-          <button onClick={() => { gridGoHome(); goHome() }} className="px-8 py-3 rounded-2xl bg-gray-800 text-gray-300 text-base">
-            תפריט ראשי
-          </button>
+        className="fixed inset-0 flex flex-col items-center justify-center z-50 px-6">
+        <SceneBackground />
+        <div className="relative flex flex-col items-center gap-3 max-w-[320px]">
+          <div className="text-6xl">😔</div>
+          <h1 className="text-2xl font-black text-white/85">שלב {playingLevelIdx + 1} נכשל</h1>
+          <div className="flex flex-col items-center">
+            <div style={{ fontFamily: 'Sora', fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 800, letterSpacing: '0.16em' }}>FINAL SCORE</div>
+            <div className="gold-text num" style={{ fontSize: 48, lineHeight: 1 }}>{playTotalScore.toLocaleString()}</div>
+          </div>
+          <p className="text-white/55 text-sm">הגעת לשלב {playingLevelIdx + 1} מתוך {playingPack.levels.length}</p>
+          <div className="flex flex-col gap-2.5 w-full max-w-[280px] mt-3">
+            <button onClick={openHub} className="btn-3d shine w-full">
+              <Icon.Lightning size={18} />
+              <span>חזרה לעורך</span>
+            </button>
+            <button onClick={() => { gridGoHome(); goHome() }} className="btn-3d ghost w-full">
+              תפריט ראשי
+            </button>
+          </div>
         </div>
       </motion.div>
     )
@@ -2524,21 +2897,17 @@ function PreGameScreen({ modeKey, onStart, onBack }: {
   if (countdown !== null) {
     return (
       <motion.div key="cd" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        className="fixed inset-0 home-gradient flex flex-col items-center justify-center z-50">
+        className="fixed inset-0 flex flex-col items-center justify-center z-50">
+        <SceneBackground />
         <motion.div
           key={countdown}
           initial={{ scale: 2.2, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.4, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 18 }}
-          className="text-9xl font-black"
+          className={countdown === 1 ? 'chrome-text' : 'gold-text'}
           style={{
-            color: countdown === 3 ? '#4ADE80' : countdown === 2 ? '#FBBF24' : '#F87171',
-            textShadow: countdown === 3
-              ? '0 0 40px rgba(74,222,128,0.7), 0 0 80px rgba(74,222,128,0.3)'
-              : countdown === 2
-              ? '0 0 40px rgba(251,191,36,0.7), 0 0 80px rgba(251,191,36,0.3)'
-              : '0 0 40px rgba(248,113,113,0.9), 0 0 80px rgba(248,113,113,0.5)',
+            fontFamily: 'Sora', fontWeight: 900, fontSize: 140, lineHeight: 1, direction: 'ltr',
           }}
         >
           {countdown}
@@ -2550,53 +2919,56 @@ function PreGameScreen({ modeKey, onStart, onBack }: {
   return (
     <motion.div initial={{ x: 40, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
       exit={{ x: -40, opacity: 0 }}
-      className="fixed inset-0 bg-bg flex flex-col z-50 px-6 pt-safe pb-safe overflow-y-auto">
+      className="fixed inset-0 flex flex-col z-50 px-6 pt-safe pb-safe overflow-y-auto">
+      <SceneBackground />
 
-      {/* Back button */}
-      <button onClick={onBack} className="self-start mt-4 mb-6 flex items-center gap-1 text-gray-400 text-sm">
-        <span>→</span><span>חזרה</span>
-      </button>
+      <div className="relative flex flex-col flex-1 w-full max-w-[340px] mx-auto">
+        <button onClick={onBack} className="self-start mt-4 mb-5 flex items-center gap-1 text-white/55 text-sm font-bold">
+          <span>→</span><span>חזרה</span>
+        </button>
 
-      {/* Header */}
-      <div className="text-center mb-6">
-        <div className="text-6xl mb-3">{info.emoji}</div>
-        <h1 className="text-3xl font-bold text-white mb-2">{info.title}</h1>
-        <p className="text-gray-400 text-base leading-relaxed">{info.desc}</p>
-      </div>
+        <div className="text-center mb-5">
+          <div className="text-6xl mb-3">{info.emoji}</div>
+          <div className="gold-text" style={{ fontSize: 32, lineHeight: 1.05 }}>{info.title}</div>
+          <p className="text-white/65 text-sm leading-relaxed mt-2 px-2">{info.desc}</p>
+        </div>
 
-      {/* Leaderboard */}
-      <div className="mb-6">
-        <h2 className="text-center text-gray-400 text-sm font-medium mb-3 tracking-wide uppercase">
-          טבלת שיאים
-        </h2>
-        {board.length === 0 ? (
-          <p className="text-center text-gray-600 text-sm">אין שיאים עדיין — היה הראשון!</p>
-        ) : (
-          <div className="space-y-2 max-w-[300px] mx-auto">
-            {board.map((entry, i) => (
-              <motion.div key={i}
-                initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: i * 0.08 }}
-                className={`flex items-center justify-between px-4 py-3 rounded-xl ${
-                  i === 0 ? 'bg-yellow-500/15 border border-yellow-500/40' : 'bg-tile border border-gray-700/30'
-                }`}>
-                <div className="flex items-center gap-3">
-                  <span className="text-lg w-6 text-center">{i < 3 ? MEDALS[i] : `${i + 1}.`}</span>
-                  <span className="text-white font-medium">{entry.name}</span>
-                </div>
-                <span className="text-accent font-bold">{entry.value} {info.lbLabel}</span>
-              </motion.div>
-            ))}
-          </div>
-        )}
-      </div>
+        <div className="mb-5">
+          <h2 className="text-center text-white/45 text-xs font-black mb-3 tracking-[0.32em] uppercase">
+            טבלת שיאים
+          </h2>
+          {board.length === 0 ? (
+            <p className="text-center text-white/40 text-sm">אין שיאים עדיין — היה הראשון!</p>
+          ) : (
+            <div className="space-y-2 mx-auto">
+              {board.map((entry, i) => (
+                <motion.div key={i}
+                  initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: i * 0.08 }}
+                  className="flex items-center justify-between px-4 py-3 rounded-xl"
+                  style={{
+                    background: i === 0
+                      ? 'linear-gradient(180deg, rgba(245,185,66,0.18), rgba(196,123,20,0.08))'
+                      : 'rgba(15,8,30,0.7)',
+                    border: i === 0 ? '1px solid rgba(245,185,66,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                  }}>
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg w-6 text-center">{i < 3 ? MEDALS[i] : `${i + 1}.`}</span>
+                    <span className="text-white font-bold text-sm">{entry.name}</span>
+                  </div>
+                  <span className="num font-sora font-black" style={{ color: '#ffe27a' }}>{entry.value} <span className="text-white/55 text-xs">{info.lbLabel}</span></span>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
 
-      {/* Start button */}
-      <div className="mt-auto pb-6 max-w-[300px] mx-auto w-full">
-        <motion.button whileTap={{ scale: 0.96 }} onClick={handleStart}
-          className="w-full py-5 rounded-2xl bg-accent text-white text-2xl font-bold shadow-xl shadow-accent/30">
-          !התחל משחק
-        </motion.button>
+        <div className="mt-auto pb-6 w-full">
+          <button onClick={handleStart} className="btn-3d shine w-full" style={{ fontSize: 22, padding: '18px' }}>
+            <Icon.Lightning size={22} />
+            <span>!התחל משחק</span>
+          </button>
+        </div>
       </div>
     </motion.div>
   )
@@ -2676,179 +3048,179 @@ function HomeScreen() {
     )
   }
 
+  // Best score for the footer line — Score Rush is the canonical "personal best"
+  const personalBestLine = bestScoreRush > 0
+    ? <>שיא אישי <span style={{ color: '#ffe27a', fontWeight: 800 }} className="num">{bestScoreRush.toLocaleString()}</span> נק׳</>
+    : <>שחק כדי לקבע שיא אישי</>
+
   return (
-    <div className="fixed inset-0 home-gradient flex flex-col items-center justify-center z-50 px-6">
-      <motion.h1
-        initial={{ y: -20, opacity: 0, scale: 0.9 }}
-        animate={{ y: 0, opacity: 1, scale: 1 }}
-        transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-        className="text-6xl font-bold mb-2 logo-gradient"
-      >
-        xActo
-      </motion.h1>
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.15 }}
-        className="text-gray-400 text-lg mb-5"
-      >
-        !מלא את השורה במילים
-      </motion.p>
+    <div className="fixed inset-0 flex flex-col items-center z-50 px-6 overflow-y-auto">
+      <SceneBackground />
 
-      {/* Single / Multiplayer toggle */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="mb-5"
-      >
-        <div className="flex rounded-full bg-tile border border-gray-700/50 p-1">
-          <button
-            onClick={() => { setIsMulti(false); setMultiStep('menu') }}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${!isMulti ? 'bg-accent text-white' : 'text-gray-400'}`}
-          >
-            יחיד
-          </button>
-          <button
-            onClick={() => { setIsMulti(true); setMultiStep('menu') }}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${isMulti ? 'bg-accent text-white' : 'text-gray-400'}`}
-          >
-            מולטי 👥
-          </button>
-        </div>
-      </motion.div>
-
-      {/* ─── SINGLE PLAYER: show mode buttons ─── */}
-      {!isMulti && (
-        <div className="flex flex-col gap-3 w-full max-w-[280px]">
-          {modes.map((m) => (
-            <motion.button
-              key={m.key}
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: m.delay }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => handleSingleModeClick(m.key)}
-              className={`px-6 py-4 rounded-2xl text-white text-lg font-bold flex items-center justify-between mode-btn-${m.key}`}
-            >
-              <span>{m.label}</span>
-              <span className="text-sm font-normal text-white/65">{m.best}</span>
-            </motion.button>
-          ))}
-        </div>
-      )}
-
-      {/* ─── MULTIPLAYER: menu step (Create / Join / Settings) ─── */}
-      {isMulti && multiStep === 'menu' && (
+      <div className="relative flex flex-col items-center w-full max-w-[340px] py-6">
+        {/* Eyebrow + Logo */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col gap-3 w-full max-w-[280px]"
-        >
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setMultiStep('create_mode')}
-            className="px-6 py-4 rounded-2xl bg-accent text-white text-lg font-bold shadow-lg shadow-accent/20"
-          >
-            🏠 צור משחק
-          </motion.button>
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setMultiStep('join')}
-            className="px-6 py-4 rounded-2xl bg-tile text-white text-lg font-bold border border-gray-700/40"
-          >
-            🔗 הצטרף למשחק
-          </motion.button>
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          transition={{ delay: 0.1 }}
+          style={{
+            fontFamily: 'Sora', fontWeight: 900, fontSize: 13, letterSpacing: '0.42em',
+            color: 'rgba(255,255,255,0.45)', marginBottom: 8,
+          }}>
+          HEBREW WORD CHALLENGE
+        </motion.div>
 
-          {/* Player count */}
-          <div className="flex items-center justify-between bg-tile rounded-xl px-4 py-3 border border-gray-700/30">
-            <span className="text-gray-300 text-sm">מספר שחקנים</span>
-            <select
-              value={playerCount}
-              onChange={(e) => setPlayerCount(Number(e.target.value))}
-              className="bg-transparent text-white text-sm font-bold outline-none cursor-pointer"
-            >
-              {[2, 3, 4, 5, 6].map((n) => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          </div>
+        <motion.div
+          initial={{ y: -10, opacity: 0, scale: 0.95 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 200, damping: 20 }}>
+          <ExactoLogo size={72} />
+        </motion.div>
 
-          {/* Level count */}
-          <div className="flex items-center justify-between bg-tile rounded-xl px-4 py-3 border border-gray-700/30">
-            <span className="text-gray-300 text-sm">מספר שלבים</span>
-            <select
-              value={levelCount}
-              onChange={(e) => setLevelCount(Number(e.target.value))}
-              className="bg-transparent text-white text-sm font-bold outline-none cursor-pointer"
-            >
-              {[3, 5, 7, 10, 15, 0].map((n) => (
-                <option key={n} value={n}>{n === 0 ? '♾ אינסוף' : String(n)}</option>
-              ))}
-            </select>
+        <motion.p
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="text-center mt-2 mb-5 px-4"
+          style={{ fontFamily: 'Heebo', fontWeight: 500, fontSize: 15, color: 'rgba(255,255,255,0.7)' }}>
+          מלא את השורה במילים<br />
+          <span style={{ color: '#ffe27a', fontWeight: 800 }}>בדיוק לפני שנגמר הזמן</span>
+        </motion.p>
+
+        {/* Single / Multi toggle pill */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          transition={{ delay: 0.25 }}
+          className="mb-4">
+          <div className="flex rounded-full p-1"
+            style={{ background: 'rgba(15,8,30,0.7)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <button onClick={() => { setIsMulti(false); setMultiStep('menu') }}
+              className="px-5 py-1.5 rounded-full text-sm font-bold transition-all"
+              style={!isMulti
+                ? { background: 'linear-gradient(180deg,#fb7185,#be123c)', color: '#fff', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4)' }
+                : { color: 'rgba(255,255,255,0.55)' }}>
+              יחיד
+            </button>
+            <button onClick={() => { setIsMulti(true); setMultiStep('menu') }}
+              className="px-5 py-1.5 rounded-full text-sm font-bold transition-all"
+              style={isMulti
+                ? { background: 'linear-gradient(180deg,#fb7185,#be123c)', color: '#fff', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4)' }
+                : { color: 'rgba(255,255,255,0.55)' }}>
+              מולטי 👥
+            </button>
           </div>
         </motion.div>
-      )}
 
-      {/* ─── MULTIPLAYER: creator picks game mode ─── */}
-      {isMulti && multiStep === 'create_mode' && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col gap-3 w-full max-w-[280px]"
-        >
-          <p className="text-gray-400 text-center mb-2">:בחר מצב משחק</p>
-          {modes.filter(m => m.key !== 'designer').map((m) => (
-            <motion.button
-              key={m.key}
-              initial={{ y: 15, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: m.delay - 0.2 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => handleCreateModeClick(m.key)}
-              className="px-6 py-4 rounded-2xl bg-accent/90 hover:bg-accent text-white text-lg font-bold
-                shadow-lg shadow-accent/20 flex items-center justify-between"
-            >
-              <span>{m.label}</span>
-              <span className="text-sm font-normal text-white/60">{playerCount}👥</span>
-            </motion.button>
-          ))}
-          <button onClick={() => setMultiStep('menu')} className="text-gray-400 text-sm mt-2">← חזרה</button>
-        </motion.div>
-      )}
+        {/* ─── SINGLE PLAYER: mode buttons ─── */}
+        {!isMulti && (
+          <div className="flex flex-col gap-2.5 w-full">
+            {modes.map((m, i) => {
+              const isDesigner = m.key === 'designer'
+              return (
+                <motion.button
+                  key={m.key}
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.3 + i * 0.06 }}
+                  onClick={() => handleSingleModeClick(m.key)}
+                  className={`btn-3d ${isDesigner ? 'gold' : ''} w-full justify-between`}
+                  style={{ fontSize: 17, padding: '14px 20px' }}>
+                  <span>{m.label}</span>
+                  {m.best && <span style={{ fontSize: 13, fontWeight: 700, opacity: 0.75 }} className="num">{m.best}</span>}
+                </motion.button>
+              )
+            })}
+          </div>
+        )}
 
-      {/* ─── MULTIPLAYER: joiner enters code ─── */}
-      {isMulti && multiStep === 'join' && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col gap-4 w-full max-w-[280px] items-center"
-        >
-          <p className="text-gray-400 text-sm">:הכנס קוד חדר</p>
-          <input
-            type="tel"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={4}
-            value={joinCode}
-            onChange={(e) => { setJoinCode(e.target.value.replace(/\D/g, '')); setJoinError('') }}
-            placeholder="0000"
-            className="text-center text-4xl font-bold font-mono tracking-[0.4em] bg-tile border-2 border-gray-700 rounded-xl py-3 w-full text-white placeholder-gray-600 focus:border-accent outline-none"
-            autoFocus
-          />
-          {joinError && <p className="text-error text-sm">{joinError}</p>}
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            disabled={joinCode.length !== 4}
-            onClick={handleJoin}
-            className={`px-8 py-3 rounded-2xl text-white text-lg font-bold w-full ${joinCode.length === 4 ? 'bg-accent shadow-lg shadow-accent/20' : 'bg-gray-700 text-gray-500'}`}
-          >
-            הצטרף
-          </motion.button>
-          <button onClick={() => { setMultiStep('menu'); setJoinCode(''); setJoinError('') }}
-            className="text-gray-400 text-sm">← חזרה</button>
-        </motion.div>
-      )}
+        {/* ─── MULTIPLAYER: menu step ─── */}
+        {isMulti && multiStep === 'menu' && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col gap-2.5 w-full">
+            <button onClick={() => setMultiStep('create_mode')} className="btn-3d shine w-full">
+              🏠 <span>צור משחק</span>
+            </button>
+            <button onClick={() => setMultiStep('join')} className="btn-3d ghost w-full" style={{ fontSize: 18 }}>
+              🔗 <span>הצטרף למשחק</span>
+            </button>
+            <div className="flex items-center justify-between rounded-xl px-4 py-3"
+              style={{ background: 'rgba(15,8,30,0.7)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <span className="text-white/70 text-sm font-bold">מספר שחקנים</span>
+              <select value={playerCount} onChange={(e) => setPlayerCount(Number(e.target.value))}
+                className="bg-transparent text-white text-sm font-black outline-none cursor-pointer">
+                {[2, 3, 4, 5, 6].map((n) => (
+                  <option key={n} value={n} style={{ background: '#1a0510' }}>{n}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center justify-between rounded-xl px-4 py-3"
+              style={{ background: 'rgba(15,8,30,0.7)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <span className="text-white/70 text-sm font-bold">מספר שלבים</span>
+              <select value={levelCount} onChange={(e) => setLevelCount(Number(e.target.value))}
+                className="bg-transparent text-white text-sm font-black outline-none cursor-pointer">
+                {[3, 5, 7, 10, 15, 0].map((n) => (
+                  <option key={n} value={n} style={{ background: '#1a0510' }}>{n === 0 ? '♾ אינסוף' : String(n)}</option>
+                ))}
+              </select>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ─── MULTIPLAYER: creator picks game mode ─── */}
+        {isMulti && multiStep === 'create_mode' && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col gap-2.5 w-full">
+            <p className="text-white/60 text-center text-sm font-bold mb-1">:בחר מצב משחק</p>
+            {modes.filter((m) => m.key !== 'designer').map((m, i) => (
+              <motion.button key={m.key}
+                initial={{ y: 15, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: i * 0.06 }}
+                onClick={() => handleCreateModeClick(m.key)}
+                className="btn-3d w-full justify-between"
+                style={{ fontSize: 17, padding: '14px 20px' }}>
+                <span>{m.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, opacity: 0.7 }}>{playerCount}👥</span>
+              </motion.button>
+            ))}
+            <button onClick={() => setMultiStep('menu')} className="text-white/55 text-sm mt-2 font-bold">← חזרה</button>
+          </motion.div>
+        )}
+
+        {/* ─── MULTIPLAYER: joiner enters code ─── */}
+        {isMulti && multiStep === 'join' && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col gap-3 w-full items-center">
+            <p className="text-white/60 text-sm font-bold">:הכנס קוד חדר</p>
+            <input
+              type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={4}
+              value={joinCode}
+              onChange={(e) => { setJoinCode(e.target.value.replace(/\D/g, '')); setJoinError('') }}
+              placeholder="0000"
+              className="text-center font-mono num text-white outline-none rounded-xl py-3 w-full"
+              style={{
+                fontFamily: 'Sora', fontWeight: 900, fontSize: 40, letterSpacing: '0.4em',
+                background: 'rgba(15,8,30,0.7)',
+                border: '2px solid rgba(255,255,255,0.12)',
+                color: '#fff',
+              }}
+              autoFocus
+            />
+            {joinError && <p className="text-error text-sm font-bold">{joinError}</p>}
+            <button disabled={joinCode.length !== 4} onClick={handleJoin}
+              className="btn-3d shine w-full" style={{ fontSize: 18 }}>
+              הצטרף
+            </button>
+            <button onClick={() => { setMultiStep('menu'); setJoinCode(''); setJoinError('') }}
+              className="text-white/55 text-sm font-bold">← חזרה</button>
+          </motion.div>
+        )}
+
+        {/* Footer line */}
+        {!isMulti && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
+            className="text-center text-xs font-bold mt-5"
+            style={{ color: 'rgba(255,255,255,0.45)', letterSpacing: '0.04em' }}>
+            {personalBestLine}
+          </motion.div>
+        )}
+      </div>
     </div>
   )
 }
@@ -2963,7 +3335,11 @@ export default function GamePage() {
   const showHome = status === 'idle' && gridStatus === 'idle' && mpStatus === 'idle' && !isDesignerMode
 
   return (
-    <main className="h-dvh flex flex-col max-w-md mx-auto overflow-x-hidden">
+    <main className="h-dvh flex flex-col max-w-md mx-auto overflow-x-hidden relative">
+      {/* Persistent scene background — visible behind every mode */}
+      <div className="fixed inset-0 -z-10 pointer-events-none">
+        <SceneBackground />
+      </div>
       {showHome && <HomeScreen />}
 
       {/* Back button leave confirmation dialog */}
@@ -2987,7 +3363,7 @@ export default function GamePage() {
         <GridGame />
       ) : isScoreRush ? (
         <ScoreRushGame />
-      ) : (
+      ) : status !== 'idle' ? (
         <>
           <TopBar />
           <TargetRow />
@@ -3004,7 +3380,7 @@ export default function GamePage() {
             {(status === 'won' || status === 'lost') && <ResultScreen />}
           </AnimatePresence>
         </>
-      )}
+      ) : null}
     </main>
   )
 }
