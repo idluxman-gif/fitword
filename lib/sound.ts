@@ -4,29 +4,64 @@
  */
 
 let audioCtx: AudioContext | null = null
+let audioUnlocked = false
 
-function getCtx(): AudioContext {
+function getCtx(): AudioContext | null {
+  if (typeof window === 'undefined') return null
+  const Ctor = (window as any).AudioContext || (window as any).webkitAudioContext
+  if (!Ctor) return null
   if (!audioCtx) {
-    audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
+    try { audioCtx = new Ctor() } catch { return null }
   }
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume()
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {})
   }
   return audioCtx
 }
 
+/**
+ * iOS PWA standalone mode silently blocks Web Audio until it's been touched
+ * inside a user gesture. We register one-shot global listeners to play a
+ * silent buffer on the first interaction — this "unlocks" the context so
+ * later sound calls (which may not always be in the same gesture frame)
+ * still produce audio.
+ */
+function unlockAudio() {
+  if (audioUnlocked) return
+  const ctx = getCtx()
+  if (!ctx) return
+  try {
+    const buf = ctx.createBuffer(1, 1, 22050)
+    const src = ctx.createBufferSource()
+    src.buffer = buf
+    src.connect(ctx.destination)
+    src.start(0)
+    audioUnlocked = true
+  } catch { /* iOS may still reject — fall through, individual plays will retry */ }
+}
+
+if (typeof document !== 'undefined') {
+  const fire = () => unlockAudio()
+  document.addEventListener('touchstart', fire, { once: true, capture: true, passive: true })
+  document.addEventListener('pointerdown', fire, { once: true, capture: true })
+  document.addEventListener('click', fire, { once: true, capture: true })
+}
+
 function playTone(freq: number, duration: number, type: OscillatorType = 'sine', gain: number = 0.15) {
   const ctx = getCtx()
-  const osc = ctx.createOscillator()
-  const g = ctx.createGain()
-  osc.type = type
-  osc.frequency.value = freq
-  g.gain.value = gain
-  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration)
-  osc.connect(g)
-  g.connect(ctx.destination)
-  osc.start(ctx.currentTime)
-  osc.stop(ctx.currentTime + duration)
+  if (!ctx) return
+  try {
+    const osc = ctx.createOscillator()
+    const g = ctx.createGain()
+    osc.type = type
+    osc.frequency.value = freq
+    g.gain.value = gain
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration)
+    osc.connect(g)
+    g.connect(ctx.destination)
+    osc.start(ctx.currentTime)
+    osc.stop(ctx.currentTime + duration)
+  } catch { /* iOS audio occasionally throws — swallow */ }
 }
 
 function vibrate(pattern: number[]) {
@@ -79,9 +114,21 @@ export function playTimerWarning(muted: boolean) {
   if (!muted) playTone(880, 0.07, 'sine', 0.1)
 }
 
+/**
+ * Audible confirmation when the user toggles unmute on — so they hear
+ * proof that sound works (instead of a silent UI change).
+ */
+export function playMuteToggle(nowMuted: boolean) {
+  unlockAudio()
+  if (nowMuted) return
+  playTone(523, 0.07, 'sine', 0.14)
+  setTimeout(() => playTone(784, 0.1, 'sine', 0.14), 70)
+}
+
 export function playExplosion(muted: boolean) {
   if (muted) return
   const ctx = getCtx()
+  if (!ctx) return
 
   // White noise burst (sharp crack)
   const bufferSize = Math.floor(ctx.sampleRate * 0.35)

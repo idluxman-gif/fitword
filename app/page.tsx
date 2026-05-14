@@ -6,7 +6,7 @@ import { useGameStore, type GameMode } from '@/lib/store'
 import { useGridStore, type Direction } from '@/lib/grid-store'
 import { useMultiplayerStore, type MultiplayerStatus } from '@/lib/multiplayer-store'
 import { useDesignerStore, type CustomLevel, type LevelPack } from '@/lib/designer-store'
-import { playTileTap, playValidWord, playInvalidWord, playPerfectFit, playStageClear, playTimerWarning, playExplosion } from '@/lib/sound'
+import { playTileTap, playValidWord, playInvalidWord, playPerfectFit, playStageClear, playTimerWarning, playExplosion, playMuteToggle } from '@/lib/sound'
 import { fetchLeaderboard, checkQualifies, submitScore, type LeaderboardEntry } from '@/lib/leaderboard'
 
 // ════════════════════════════════════════════════════════════════════
@@ -267,10 +267,14 @@ function useTimer() {
 function MuteButton() {
   const muted = useGameStore((s) => s.muted)
   const toggleMute = useGameStore((s) => s.toggleMute)
+  const handleClick = () => {
+    toggleMute()
+    playMuteToggle(useGameStore.getState().muted)
+  }
 
   return (
     <button
-      onClick={toggleMute}
+      onClick={handleClick}
       className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-white transition-colors"
       aria-label={muted ? 'הפעל צלילים' : 'השתק'}
     >
@@ -1050,7 +1054,7 @@ function GridTopBar() {
               <span className="num" style={{ fontWeight: 900 }}>{filledCells}/{totalCells}</span>
             </div>
           </div>
-          <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center text-white/60" aria-label={muted ? 'בטל השתקה' : 'השתק'}>
+          <button onClick={() => { toggleMute(); playMuteToggle(useGridStore.getState().muted) }} className="w-8 h-8 flex items-center justify-center text-white/60" aria-label={muted ? 'בטל השתקה' : 'השתק'}>
             {muted ? '🔇' : '🔊'}
           </button>
           <button onClick={() => setShowLeave(true)} className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-error text-sm" aria-label="יציאה">✕</button>
@@ -1685,7 +1689,7 @@ function MultiplayerTopBar() {
               <span className="num" style={{ fontWeight: 900 }}>{remaining}</span>
             </div>
           </div>
-          <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center text-white/60">{muted ? '🔇' : '🔊'}</button>
+          <button onClick={() => { toggleMute(); playMuteToggle(useMultiplayerStore.getState().muted) }} className="w-8 h-8 flex items-center justify-center text-white/60">{muted ? '🔇' : '🔊'}</button>
           <button onClick={() => setShowLeaveConfirm(true)} className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-error text-sm">✕</button>
         </div>
       </div>
@@ -2391,7 +2395,7 @@ function ScoreRushTopBar() {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center text-white/60">{muted ? '🔇' : '🔊'}</button>
+          <button onClick={() => { toggleMute(); playMuteToggle(useGameStore.getState().muted) }} className="w-8 h-8 flex items-center justify-center text-white/60">{muted ? '🔇' : '🔊'}</button>
           <button onClick={() => setShowLeave(true)} className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-error text-sm">✕</button>
         </div>
       </div>
@@ -3335,7 +3339,7 @@ export default function GamePage() {
   const showHome = status === 'idle' && gridStatus === 'idle' && mpStatus === 'idle' && !isDesignerMode
 
   return (
-    <main className="h-dvh flex flex-col max-w-md mx-auto overflow-x-hidden relative">
+    <main className="h-dvh flex flex-col max-w-md mx-auto overflow-x-hidden relative pt-safe">
       {/* Persistent scene background — visible behind every mode */}
       <div className="fixed inset-0 -z-10 pointer-events-none">
         <SceneBackground />

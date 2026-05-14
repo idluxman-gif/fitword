@@ -60,6 +60,7 @@ body {
 }
 
 .pb-safe { padding-bottom: var(--safe-area-bottom); }
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
 .num { font-variant-numeric: tabular-nums; }
 
 /* ───────── Scene background (every screen) ───────── */
