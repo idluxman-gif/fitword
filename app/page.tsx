@@ -1657,12 +1657,23 @@ function MultiplayerTopBar() {
   const leaveGame = useMultiplayerStore((s) => s.leaveGame)
   const stage = useMultiplayerStore((s) => s.stage)
   const maxLevels = useMultiplayerStore((s) => s.maxLevels)
+  const gameMode = useMultiplayerStore((s) => s.gameMode)
 
   const score = mpScore
   const filledLen = filledWords.reduce((s, w) => s + w.length, 0)
   const remaining = Math.max(0, targetLength - filledLen)
   const isLow = timeLeft <= 15
-  const stageLabel = maxLevels > 0 ? `${stage}/${maxLevels}` : `שלב ${stage}`
+
+  // Pick the right side-indicator per mode:
+  // - quick/endless (row): "remaining slots"
+  // - score_rush: total words played
+  // - grid/shapes/shapes_v2: nothing (the grid itself shows progress)
+  const isRowMode = gameMode === 'quick' || gameMode === 'endless'
+  const isScoreRush = gameMode === 'score_rush'
+
+  const stageLabel = isScoreRush
+    ? 'ריצת ניקוד'
+    : maxLevels > 0 ? `${stage}/${maxLevels}` : `שלב ${stage}`
 
   return (
     <div className="px-3 py-2">
@@ -1670,7 +1681,7 @@ function MultiplayerTopBar() {
         <TimerRing time={timeLeft} totalTime={90} low={isLow} />
         <div className="flex-1 flex flex-col items-center gap-1">
           <div className="stage-badge">
-            <Icon.Crown size={14} />
+            {isScoreRush ? <Icon.Lightning size={12} /> : <Icon.Crown size={14} />}
             <span>{stageLabel}</span>
           </div>
           <div className="flex items-baseline gap-1">
@@ -1684,11 +1695,20 @@ function MultiplayerTopBar() {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <div className="hud-pill" style={{ padding: '4px 10px 4px 4px' }}>
-            <div className="ico" style={{ width: 22, height: 22, fontSize: 12 }}>
-              <span className="num" style={{ fontWeight: 900 }}>{remaining}</span>
+          {isRowMode && (
+            <div className="hud-pill" style={{ padding: '4px 10px 4px 4px' }}>
+              <div className="ico" style={{ width: 22, height: 22, fontSize: 12 }}>
+                <span className="num" style={{ fontWeight: 900 }}>{remaining}</span>
+              </div>
             </div>
-          </div>
+          )}
+          {isScoreRush && (
+            <div className="hud-pill" style={{ padding: '4px 10px 4px 4px' }}>
+              <div className="ico" style={{ width: 22, height: 22, fontSize: 11 }}>
+                <span className="num" style={{ fontWeight: 900 }}>{filledWords.length}</span>
+              </div>
+            </div>
+          )}
           <button onClick={() => { toggleMute(); playMuteToggle(useMultiplayerStore.getState().muted) }} className="w-8 h-8 flex items-center justify-center text-white/60">{muted ? '🔇' : '🔊'}</button>
           <button onClick={() => setShowLeaveConfirm(true)} className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-error text-sm">✕</button>
         </div>
@@ -2035,7 +2055,8 @@ function MultiplayerGridBridge() {
     if (mpStatus === 'playing' && mpLetters.length > 0 && stageRef.current !== mpStage) {
       const isNewStage = stageRef.current > 0 && mpStage > stageRef.current
       stageRef.current = mpStage
-      const difficulty = mpGameMode === 'shapes' ? 'shapes' : 'normal'
+      const difficulty = mpGameMode === 'shapes' ? 'shapes' :
+                         mpGameMode === 'shapes_v2' ? 'shapes_v2' : 'normal'
 
       if (isNewStage) {
         // Start next stage — score already synced to mp store by grid won/lost effects
@@ -2237,7 +2258,8 @@ function MultiplayerGame() {
   const status = useMultiplayerStore((s) => s.status)
   const gameMode = useMultiplayerStore((s) => s.gameMode)
 
-  const isGridMode = gameMode === 'grid' || gameMode === 'shapes'
+  const isGridMode = gameMode === 'grid' || gameMode === 'shapes' || gameMode === 'shapes_v2'
+  const isScoreRush = gameMode === 'score_rush'
 
   return (
     <>
@@ -2259,6 +2281,22 @@ function MultiplayerGame() {
                 <MultiplayerGridWordBuilder />
                 <div className="h-2" />
                 <MultiplayerGridLetterTiles />
+                <div className="h-2" />
+              </div>
+            </>
+          ) : isScoreRush ? (
+            <>
+              <MultiplayerFeedback />
+              <div className="flex-1 flex items-center justify-center px-4">
+                {/* Score Rush has no target row — center area shows mode hint */}
+                <p className="text-white/35 text-xs text-center max-w-[200px]">
+                  שלח מילים ברצף · כל מילה מוסיפה זמן · 10 מילים = ערבוב
+                </p>
+              </div>
+              <div className="shrink-0 pb-safe">
+                <MultiplayerWordBuilder />
+                <div className="h-2" />
+                <MultiplayerLetterTiles />
                 <div className="h-2" />
               </div>
             </>
@@ -3030,7 +3068,10 @@ function HomeScreen() {
 
   // Multiplayer: creator picks mode → creates room
   const handleCreateModeClick = async (key: string) => {
-    const levels = (key === 'grid' || key === 'shapes') ? levelCount : 0
+    // Grid/shapes/shapes_v2 are stage-based — use the player-chosen level count.
+    // Score Rush is timer-based (no stages) — ignore level count.
+    const stageBased = key === 'grid' || key === 'shapes' || key === 'shapes_v2'
+    const levels = stageBased ? levelCount : 0
     useMultiplayerStore.setState({ status: 'creating', gameMode: key as any, maxPlayers: playerCount, maxLevels: levels })
     await createRoom(key as any, playerCount, levels)
   }

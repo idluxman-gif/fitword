@@ -26,7 +26,7 @@ export interface PlayerState {
   perfectFit: boolean
 }
 
-export type MPGameMode = 'quick' | 'endless' | 'score_rush' | 'grid' | 'shapes'
+export type MPGameMode = 'quick' | 'endless' | 'score_rush' | 'grid' | 'shapes' | 'shapes_v2'
 
 interface MultiplayerState {
   roomCode: string | null
@@ -134,16 +134,20 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     const code = genCode()
     const letters = pickWeightedLetters(10)
     const targetLengths = [13, 14, 15, 16]
-    const targetLength = mode === 'quick'
+    // score_rush has no target row — keep effectively unlimited so addLetterByIndex
+    // doesn't hit the row cap. grid/shapes/shapes_v2 ignore targetLength entirely.
+    const targetLength = mode === 'score_rush'
+      ? 999
+      : mode === 'quick'
       ? targetLengths[Math.floor(Math.random() * targetLengths.length)]
       : 15
 
     const roomRef = ref(db, `rooms/${code}`)
     const playerData: PlayerState = { id: playerId, name: 'שחקן 1', score: 0, filledLength: 0, finished: false, perfectFit: false, ready: false }
 
-    // Generate shape for grid/shapes modes so all players get the same board
+    // Generate shape for grid/shapes/shapes_v2 modes so all players get the same board
     let shapeData: boolean[][] | null = null
-    if (mode === 'shapes') {
+    if (mode === 'shapes' || mode === 'shapes_v2') {
       const { shape } = generateShapeForStage(1)
       shapeData = shape
     } else if (mode === 'grid') {
@@ -440,9 +444,48 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   },
 
   submitWord: () => {
-    const { status, currentWord, filledWords, targetLength, score } = get()
+    const { status, currentWord, filledWords, targetLength, score, gameMode, timeLeft, letters } = get()
     if (status !== 'playing' || !currentWord) return
 
+    // Common validation: duplicate + dictionary
+    if (filledWords.includes(currentWord)) {
+      set({ feedback: { text: '.מילה כבר שומשה ✗', type: 'error' }, currentWord: '', usedTileIndices: [] })
+      return
+    }
+    if (!isValidWord(currentWord)) {
+      set({ feedback: { text: '.לא במילון ✗', type: 'error' }, currentWord: '', usedTileIndices: [], score: score - 10 })
+      get().broadcastState()
+      return
+    }
+
+    const wordScore = scoreWord(currentWord)
+
+    // ─── Score Rush MP: no target row, time bonus per word, auto-shuffle every 10 words ───
+    if (gameMode === 'score_rush') {
+      const len = currentWord.length
+      const timeBonus = len <= 2 ? 1 : len === 3 ? 2 : len === 4 ? 5 : len === 5 ? 10 : 15
+      const newFilledWords = [...filledWords, currentWord]
+      let newLetters = letters
+      let shuffleMsg = ''
+      // Every 10 words: regenerate letter rack
+      if (newFilledWords.length > 0 && newFilledWords.length % 10 === 0) {
+        newLetters = pickWeightedLetters(10)
+        shuffleMsg = ' 🔄 אותיות חדשות'
+      }
+      set({
+        filledWords: newFilledWords,
+        letters: newLetters,
+        currentWord: '',
+        usedTileIndices: [],
+        score: score + wordScore,
+        timeLeft: timeLeft + timeBonus,
+        feedback: { text: `+${wordScore} נק׳ ✓ +${timeBonus}s${shuffleMsg}`, type: 'success' },
+      })
+      get().broadcastState()
+      return
+    }
+
+    // ─── Row-fill MP (quick / endless legacy fallback) ───
     const filledLen = filledWords.reduce((s, w) => s + w.length, 0)
     const remaining = targetLength - filledLen
 
@@ -450,22 +493,12 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       set({ feedback: { text: '.ארוך מדי ✗', type: 'error' }, currentWord: '', usedTileIndices: [] })
       return
     }
-    if (filledWords.includes(currentWord)) {
-      set({ feedback: { text: '.מילה כבר שומשה ✗', type: 'error' }, currentWord: '', usedTileIndices: [] })
-      return
-    }
-    if (!isValidWord(currentWord)) {
-      set({ feedback: { text: '.לא במילון ✗', type: 'error' }, currentWord: '', usedTileIndices: [], score: score - 10 })
-      return
-    }
 
-    const wordScore = scoreWord(currentWord)
     const newFilledWords = [...filledWords, currentWord]
     const newFilledLen = filledLen + currentWord.length
     const newRemaining = targetLength - newFilledLen
-    let newScore = score + wordScore
+    const newScore = score + wordScore
     const isPerfectFit = newRemaining === 0
-    // No perfect fit bonus (removed)
 
     set({
       filledWords: newFilledWords,
@@ -552,9 +585,9 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     const newLetters = pickWeightedLetters(10)
     const newStage = stage + 1
 
-    // Generate shape data for grid/shapes modes
+    // Generate shape data for grid/shapes/shapes_v2 modes
     let newShapeData: boolean[][] | null = null
-    if (gameMode === 'shapes') {
+    if (gameMode === 'shapes' || gameMode === 'shapes_v2') {
       const { shape } = generateShapeForStage(newStage)
       newShapeData = shape
     } else if (gameMode === 'grid') {
